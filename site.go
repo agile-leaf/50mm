@@ -119,30 +119,12 @@ func (s *Site) GetAllImageKeys() ([]string, error) {
 	return imageKeys, nil
 }
 
-func (s *Site) GetAllImageUrls() []string {
-	var imageUrls []string = []string{}
-
-	imageKeys, err := s.GetAllImageKeys()
-	if err != nil {
-		fmt.Printf("Unable to get image keys from S3. Error: %s", err.Error())
-		return imageUrls
+func (s *Site) GetUrlForImage(key string) (string, error){
+	if s.NeedSignedUrls {
+		return s.GetSignedUrl(key)
+	} else {
+		return s.GetFullUrl(key)
 	}
-
-	for _, v := range imageKeys {
-		var url string
-		if s.NeedSignedUrls {
-			url, err = s.GetSignedUrl(v)
-		} else {
-			url, err = s.GetFullUrl(v)
-		}
-		if err != nil {
-			fmt.Printf("Unable to get signed URL for %s. Error: %s", v, err.Error())
-			continue
-		}
-		imageUrls = append(imageUrls, url)
-	}
-
-	return imageUrls
 }
 
 func (s *Site) GetSignedUrl(key string) (string, error) {
