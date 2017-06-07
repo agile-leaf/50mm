@@ -3,12 +3,14 @@ package main
 import (
 	"fmt"
 
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-ini/ini"
-	"time"
+	"net/url"
 )
 
 type Site struct {
@@ -17,7 +19,8 @@ type Site struct {
 	BucketRegion string
 	BucketName   string
 
-	BucketBaseUrl string
+	NeedSignedUrls bool
+	BaseUrl        string
 
 	AWS_SECRET_KEY_ID string
 	AWS_SECRET_KEY    string
@@ -34,7 +37,8 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		return nil, err
 	}
 
-	for _, v := range []string{"Domain", "Region", "Bucket", "AWSKeyId", "AWSKey"} {
+	requiredFields := []string{"Domain", "Region", "Bucket", "NeedSignedUrls", "BaseUrl", "AWSKeyId", "AWSKey"}
+	for _, v := range requiredFields {
 		if !section.HasKey(v) {
 			return nil, fmt.Errorf("Config file %s does not contain value of required key %s", path, v)
 		}
@@ -47,7 +51,8 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		BucketName:   bucketName,
 
 		// For now we only deal with AWS buckets
-		BucketBaseUrl: fmt.Sprintf("http://%s.s3.amazonaws.com", bucketName),
+		NeedSignedUrls: section.Key("NeedSignedUrls").String() == "1",
+		BaseUrl:        section.Key("BaseUrl").String(),
 
 		AWS_SECRET_KEY_ID: section.Key("AWSKeyId").String(),
 		AWS_SECRET_KEY:    section.Key("AWSKey").String(),
@@ -124,7 +129,12 @@ func (s *Site) GetAllImageUrls() []string {
 	}
 
 	for _, v := range imageKeys {
-		url, err := s.SignUrlForGet(v)
+		var url string
+		if s.NeedSignedUrls {
+			url, err = s.GetSignedUrl(v)
+		} else {
+			url, err = s.GetFullUrl(v)
+		}
 		if err != nil {
 			fmt.Printf("Unable to get signed URL for %s. Error: %s", v, err.Error())
 			continue
@@ -135,7 +145,7 @@ func (s *Site) GetAllImageUrls() []string {
 	return imageUrls
 }
 
-func (s *Site) SignUrlForGet(key string) (string, error) {
+func (s *Site) GetSignedUrl(key string) (string, error) {
 	svc, err := s.GetS3Service()
 	if err != nil {
 		return "", err
@@ -143,7 +153,7 @@ func (s *Site) SignUrlForGet(key string) (string, error) {
 
 	req, _ := svc.GetObjectRequest(&s3.GetObjectInput{
 		Bucket: aws.String(s.BucketName),
-		Key: aws.String(key),
+		Key:    aws.String(key),
 	})
 
 	signedUrl, err := req.Presign(24 * time.Hour)
@@ -152,4 +162,18 @@ func (s *Site) SignUrlForGet(key string) (string, error) {
 	}
 
 	return signedUrl, nil
+}
+
+func (s *Site) GetFullUrl(key string) (string, error) {
+	baseUrl, err := url.Parse(s.BaseUrl)
+	if err != nil {
+		return "", err
+	}
+
+	keyPath, err := url.Parse(key)
+	if err != nil {
+		return "", err
+	}
+
+	return baseUrl.ResolveReference(keyPath).String(), nil
 }
