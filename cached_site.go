@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 	"fmt"
+	"sync"
 )
 
 const CACHE_INTERVAL = 10 * time.Second
@@ -20,15 +21,19 @@ type CachedSite struct {
 
 	KeyCache        atomic.Value
 	LastCacheUpdate time.Time
+
+	CacheUpdateMutex sync.Mutex
 }
 
-type UpdateCacheReturn struct {
+type GetFromCache struct {
 	keys []string
 	err  error
 }
 
 func NewCachedSiteFromSite(s *Site) *CachedSite {
-	return &CachedSite{s, atomic.Value{}, time.Time{}}
+	cs := &CachedSite{s, atomic.Value{}, time.Time{}, sync.Mutex{}}
+	<- cs.GetFromCache()
+	return cs
 }
 
 func (cs *CachedSite) GetAllImageUrls() []string {
@@ -53,14 +58,7 @@ func (cs *CachedSite) GetAllImageUrls() []string {
 }
 
 func (cs *CachedSite) GetAllImageKeys() ([]string, error) {
-	if cs.KeyCache.Load() != nil {
-		if time.Now().Sub(cs.LastCacheUpdate) > CACHE_INTERVAL {
-			cs.UpdateCache()
-		}
-		return cs.KeyCache.Load().([]string), nil
-	}
-
-	result := <-cs.UpdateCache()
+	result := <-cs.GetFromCache()
 	if result.err != nil {
 		return nil, result.err
 	} else {
@@ -68,15 +66,31 @@ func (cs *CachedSite) GetAllImageKeys() ([]string, error) {
 	}
 }
 
-func (cs *CachedSite) UpdateCache() chan *UpdateCacheReturn {
-	c := make(chan *UpdateCacheReturn)
+func (cs *CachedSite) NeedsUpdate() bool {
+	return time.Now().Sub(cs.LastCacheUpdate) > CACHE_INTERVAL
+}
+
+func (cs *CachedSite) GetFromCache() chan *GetFromCache {
+	cs.CacheUpdateMutex.Lock()
+
+	c := make(chan *GetFromCache)
 	go func() {
-		keys, err := cs.Site.GetAllImageKeys()
-		if err == nil {
-			cs.KeyCache.Store(keys)
-			cs.LastCacheUpdate = time.Now()
+		var keys []string
+		var err error
+
+		if cs.NeedsUpdate() {
+			keys, err = cs.Site.GetAllImageKeys()
+			if err == nil {
+				cs.KeyCache.Store(keys)
+				cs.LastCacheUpdate = time.Now()
+			}
+		} else {
+			keys, err = cs.KeyCache.Load().([]string), nil
 		}
-		c <- &UpdateCacheReturn{keys, err}
+
+		c <- &GetFromCache{keys, err}
+		cs.CacheUpdateMutex.Unlock()
 	}()
+
 	return c
 }
