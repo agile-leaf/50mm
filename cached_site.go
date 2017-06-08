@@ -8,10 +8,10 @@ It also allows us to update the cache in the backend while serving stale copies 
 package main
 
 import (
-	"sync/atomic"
-	"time"
 	"fmt"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 const CACHE_INTERVAL = 10 * time.Second
@@ -32,7 +32,7 @@ type GetFromCache struct {
 
 func NewCachedSiteFromSite(s *Site) *CachedSite {
 	cs := &CachedSite{s, atomic.Value{}, time.Time{}, sync.Mutex{}}
-	<- cs.GetFromCache()
+	<-cs.GetFromCache()
 	return cs
 }
 
@@ -78,17 +78,25 @@ func (cs *CachedSite) GetFromCache() chan *GetFromCache {
 		var keys []string
 		var err error
 
-		if cs.NeedsUpdate() {
+		if cs.KeyCache.Load() != nil {
+			c <- &GetFromCache{cs.KeyCache.Load().([]string), nil}
+
+			if cs.NeedsUpdate() {
+				keys, err = cs.Site.GetAllImageKeys()
+				if err == nil {
+					cs.KeyCache.Store(keys)
+					cs.LastCacheUpdate = time.Now()
+				}
+			}
+		} else {
 			keys, err = cs.Site.GetAllImageKeys()
 			if err == nil {
 				cs.KeyCache.Store(keys)
 				cs.LastCacheUpdate = time.Now()
 			}
-		} else {
-			keys, err = cs.KeyCache.Load().([]string), nil
+			c <- &GetFromCache{keys, err}
 		}
 
-		c <- &GetFromCache{keys, err}
 		cs.CacheUpdateMutex.Unlock()
 	}()
 
