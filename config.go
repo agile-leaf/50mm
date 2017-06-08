@@ -9,12 +9,22 @@ import (
 const CONFIG_DIR_ENV_VAR = "FIFTYMM_CONFIG_DIR"
 const DEFAULT_CONFIG_DIR = "/etc/fiftymm/"
 
-type AppConfig struct {
+const PORT_ENV_VAR = "FIFTYMM_PORT"
+const DEFAULT_PORT = "8080"
+
+type App struct {
+	port string
+
 	configDir string
 	sites     map[string]*CachedSite
 }
 
-func NewApp() *AppConfig {
+func NewApp() *App {
+	port := os.Getenv(PORT_ENV_VAR)
+	if port == "" {
+		port = DEFAULT_PORT
+	}
+
 	configDir := os.Getenv(CONFIG_DIR_ENV_VAR)
 	if configDir == "" {
 		configDir = DEFAULT_CONFIG_DIR
@@ -40,13 +50,14 @@ func NewApp() *AppConfig {
 		return nil
 	})
 
-	return &AppConfig{
+	return &App{
+		port:      port,
 		configDir: configDir,
 		sites:     configFilesMap,
 	}
 }
 
-func (a *AppConfig) SiteForDomain(domain string) (*CachedSite, error) {
+func (a *App) SiteForDomain(domain string) (*CachedSite, error) {
 	if cs, ok := a.sites[domain]; !ok {
 		return nil, fmt.Errorf("No site configured for domain %s", domain)
 	} else {

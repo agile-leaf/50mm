@@ -2,19 +2,45 @@ package main
 
 import (
 	"fmt"
-	"time"
+	"html/template"
+	"net/http"
 )
 
-func main() {
-	app := NewApp()
+var app *App
+var templates *template.Template
 
-	for  {
-		for _, v := range app.sites {
-			_ = v.GetAllImageUrls()
+func homeHandler(w http.ResponseWriter, r *http.Request) {
+	domain := r.Host
+	if site, err := app.SiteForDomain(domain); err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte(err.Error()))
+	} else {
+		if imageUrls, err := site.GetAllImageUrls(); err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+		} else {
+			type HomeContext struct {
+				Title     string
+				ImageUrls []string
+			}
+
+			ctx := &HomeContext{
+				site.MetaTitle,
+				imageUrls,
+			}
+			templates.ExecuteTemplate(w, "home.html", ctx)
 		}
+	}
+}
 
-		fmt.Println("Sleeping")
+func main() {
+	app = NewApp()
+	templates = template.Must(template.ParseFiles("templates/home.html"))
 
-		time.Sleep(time.Duration(20) * time.Second)
+	http.HandleFunc("/", homeHandler)
+
+	fmt.Printf("Starting server at port %s\n", app.port)
+	if err := http.ListenAndServe(fmt.Sprintf(":%s", app.port), nil); err != nil {
+		fmt.Printf("Unable to start server. Error: %s\n", err.Error())
 	}
 }

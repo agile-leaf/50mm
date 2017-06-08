@@ -32,17 +32,17 @@ type GetFromCache struct {
 
 func NewCachedSiteFromSite(s *Site) *CachedSite {
 	cs := &CachedSite{s, atomic.Value{}, time.Time{}, sync.Mutex{}}
-	<-cs.GetFromCache()
+	<-cs.GetImageKeysFromCache()
 	return cs
 }
 
-func (cs *CachedSite) GetAllImageUrls() []string {
+func (cs *CachedSite) GetAllImageUrls() ([]string, error) {
 	var imageUrls []string = []string{}
 
 	imageKeys, err := cs.GetAllImageKeys()
 	if err != nil {
 		fmt.Printf("Unable to get image keys from S3. Error: %s", err.Error())
-		return imageUrls
+		return imageUrls, err
 	}
 
 	for _, v := range imageKeys {
@@ -54,11 +54,11 @@ func (cs *CachedSite) GetAllImageUrls() []string {
 		imageUrls = append(imageUrls, imageUrl)
 	}
 
-	return imageUrls
+	return imageUrls, nil
 }
 
 func (cs *CachedSite) GetAllImageKeys() ([]string, error) {
-	result := <-cs.GetFromCache()
+	result := <-cs.GetImageKeysFromCache()
 	if result.err != nil {
 		return nil, result.err
 	} else {
@@ -70,7 +70,7 @@ func (cs *CachedSite) NeedsUpdate() bool {
 	return time.Now().Sub(cs.LastCacheUpdate) > CACHE_INTERVAL
 }
 
-func (cs *CachedSite) GetFromCache() chan *GetFromCache {
+func (cs *CachedSite) GetImageKeysFromCache() chan *GetFromCache {
 	cs.CacheUpdateMutex.Lock()
 
 	c := make(chan *GetFromCache)

@@ -19,11 +19,13 @@ type Site struct {
 	BucketRegion string
 	BucketName   string
 
-	NeedSignedUrls bool
-	BaseUrl        string
+	UseImgix bool
+	BaseUrl  string
 
 	AWS_SECRET_KEY_ID string
 	AWS_SECRET_KEY    string
+
+	MetaTitle string
 }
 
 func LoadSiteFromFile(path string) (*Site, error) {
@@ -37,7 +39,7 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		return nil, err
 	}
 
-	requiredFields := []string{"Domain", "Region", "Bucket", "NeedSignedUrls", "BaseUrl", "AWSKeyId", "AWSKey"}
+	requiredFields := []string{"Domain", "Region", "Bucket", "UseImgix", "BaseUrl", "AWSKeyId", "AWSKey", "MetaTitle"}
 	for _, v := range requiredFields {
 		if !section.HasKey(v) {
 			return nil, fmt.Errorf("Config file %s does not contain value of required key %s", path, v)
@@ -50,12 +52,13 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		BucketRegion: section.Key("Region").String(),
 		BucketName:   bucketName,
 
-		// For now we only deal with AWS buckets
-		NeedSignedUrls: section.Key("NeedSignedUrls").String() == "1",
-		BaseUrl:        section.Key("BaseUrl").String(),
+		UseImgix: section.Key("UseImgix").String() == "1",
+		BaseUrl:  section.Key("BaseUrl").String(),
 
 		AWS_SECRET_KEY_ID: section.Key("AWSKeyId").String(),
 		AWS_SECRET_KEY:    section.Key("AWSKey").String(),
+
+		MetaTitle: section.Key("MetaTitle").String(),
 	}, nil
 }
 
@@ -119,15 +122,15 @@ func (s *Site) GetAllImageKeys() ([]string, error) {
 	return imageKeys, nil
 }
 
-func (s *Site) GetUrlForImage(key string) (string, error){
-	if s.NeedSignedUrls {
-		return s.GetSignedUrl(key)
+func (s *Site) GetUrlForImage(key string) (string, error) {
+	if s.UseImgix {
+		return s.GetImgixUrl(key)
 	} else {
-		return s.GetFullUrl(key)
+		return s.GetAwsUrl(key)
 	}
 }
 
-func (s *Site) GetSignedUrl(key string) (string, error) {
+func (s *Site) GetAwsUrl(key string) (string, error) {
 	svc, err := s.GetS3Service()
 	if err != nil {
 		return "", err
@@ -146,7 +149,7 @@ func (s *Site) GetSignedUrl(key string) (string, error) {
 	return signedUrl, nil
 }
 
-func (s *Site) GetFullUrl(key string) (string, error) {
+func (s *Site) GetImgixUrl(key string) (string, error) {
 	baseUrl, err := url.Parse(s.BaseUrl)
 	if err != nil {
 		return "", err
