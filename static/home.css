@@ -1,0 +1,23 @@
+body {
+    margin: 0;
+    padding: 0;
+
+    background-color: #EEEEEE;
+}
+
+h1 {
+    font-family: 'Merriweather', serif;
+}
+
+ul.images {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+ul.images li {
+    margin: 0;
+    padding: 0 0 20px 0;
+
+    text-align: center;
+}

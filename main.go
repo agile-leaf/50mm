@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -15,18 +16,31 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 		w.Write([]byte(err.Error()))
 	} else {
+		if len(site.AuthUser) > 0 && len(site.AuthPass) > 0 {
+			if u, p, ok := r.BasicAuth(); !ok || u != site.AuthUser || subtle.ConstantTimeCompare([]byte(p), []byte(site.AuthPass)) != 1 {
+				w.Header().Set("WWW-Authenticate", `Basic realm="You need a username/password to access this site"`)
+				w.WriteHeader(401)
+				w.Write([]byte("Unauthorized\n"))
+				return
+			}
+		}
+
 		if imageUrls, err := site.GetAllImageUrls(); err != nil {
 			w.WriteHeader(500)
 			w.Write([]byte(err.Error()))
 		} else {
 			type HomeContext struct {
-				Title     string
-				ImageUrls []string
+				MetaTitle            string
+				PageTitle            string
+				LoadAtStartImageUrls []string
+				LazyLoadImageUrls    []string
 			}
 
 			ctx := &HomeContext{
 				site.MetaTitle,
-				imageUrls,
+				site.AlbumTitle,
+				imageUrls[:10],
+				imageUrls[10:],
 			}
 			templates.ExecuteTemplate(w, "home.html", ctx)
 		}
@@ -38,6 +52,7 @@ func main() {
 	templates = template.Must(template.ParseFiles("templates/home.html"))
 
 	http.HandleFunc("/", homeHandler)
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static/"))))
 
 	fmt.Printf("Starting server at port %s\n", app.port)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", app.port), nil); err != nil {

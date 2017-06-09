@@ -32,7 +32,10 @@ type GetFromCache struct {
 
 func NewCachedSiteFromSite(s *Site) *CachedSite {
 	cs := &CachedSite{s, atomic.Value{}, time.Time{}, sync.Mutex{}}
-	<-cs.GetImageKeysFromCache()
+	go func() {
+		<-cs.GetImageKeysFromCache()
+	}()
+
 	return cs
 }
 

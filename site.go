@@ -14,7 +14,9 @@ import (
 )
 
 type Site struct {
-	Domain string
+	Domain   string
+	AuthUser string
+	AuthPass string
 
 	BucketRegion string
 	BucketName   string
@@ -25,7 +27,8 @@ type Site struct {
 	AWS_SECRET_KEY_ID string
 	AWS_SECRET_KEY    string
 
-	MetaTitle string
+	MetaTitle  string
+	AlbumTitle string
 }
 
 func LoadSiteFromFile(path string) (*Site, error) {
@@ -39,7 +42,10 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		return nil, err
 	}
 
-	requiredFields := []string{"Domain", "Region", "Bucket", "UseImgix", "BaseUrl", "AWSKeyId", "AWSKey", "MetaTitle"}
+	requiredFields := []string{
+		"Domain", "Region", "Bucket", "UseImgix", "BaseUrl", "AWSKeyId", "AWSKey", "MetaTitle",
+		"AlbumTitle",
+	}
 	for _, v := range requiredFields {
 		if !section.HasKey(v) {
 			return nil, fmt.Errorf("Config file %s does not contain value of required key %s", path, v)
@@ -47,8 +53,9 @@ func LoadSiteFromFile(path string) (*Site, error) {
 	}
 
 	bucketName := section.Key("Bucket").String()
-	return &Site{
-		Domain:       section.Key("Domain").String(),
+	s := &Site{
+		Domain: section.Key("Domain").String(),
+
 		BucketRegion: section.Key("Region").String(),
 		BucketName:   bucketName,
 
@@ -58,8 +65,16 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		AWS_SECRET_KEY_ID: section.Key("AWSKeyId").String(),
 		AWS_SECRET_KEY:    section.Key("AWSKey").String(),
 
-		MetaTitle: section.Key("MetaTitle").String(),
-	}, nil
+		MetaTitle:  section.Key("MetaTitle").String(),
+		AlbumTitle: section.Key("AlbumTitle").String(),
+	}
+
+	if section.HasKey("AuthUser") && section.HasKey("AuthPass") {
+		s.AuthUser = section.Key("AuthUser").String()
+		s.AuthPass = section.Key("AuthPass").String()
+	}
+
+	return s, nil
 }
 
 func (s *Site) GetS3Service() (*s3.S3, error) {
@@ -160,5 +175,5 @@ func (s *Site) GetImgixUrl(key string) (string, error) {
 		return "", err
 	}
 
-	return baseUrl.ResolveReference(keyPath).String(), nil
+	return fmt.Sprintf("%s?w=800", baseUrl.ResolveReference(keyPath).String()), nil
 }

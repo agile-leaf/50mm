@@ -2,15 +2,46 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{{.Title}}</title>
+    <title>{{.MetaTitle}}</title>
+
+    <link href="https://fonts.googleapis.com/css?family=Merriweather" rel="stylesheet">
+
+    <link rel="stylesheet" href="/static/simple-grid.css">
+    <link rel="stylesheet" href="/static/home.css">
 </head>
 <body>
-    <ul>
-        {{range .ImageUrls}}
-        <li>
-            <img src="{{.}}?w=200">
-        </li>
-        {{end}}
-    </ul>
+    <div class="container">
+        <div class="row">
+            <div class="col-12">
+                <h1>{{.PageTitle}}</h1>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12">
+                <ul class="images">
+                    {{range .LoadAtStartImageUrls}}
+                    <li>
+                        <img src="{{.}}">
+                    </li>
+                    {{end}}
+                    {{range .LazyLoadImageUrls}}
+                    <li>
+                        <img src="/static/loading.gif" data-echo="{{.}}">
+                    </li>
+                    {{end}}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script type="application/javascript" src="/static/echo.js"></script>
+    <script type="application/javascript">
+        echo.init({
+            offset: 1000,
+            throttle: 250,
+            debounce: false,
+            unload: true
+        })
+    </script>
 </body>
 </html>
