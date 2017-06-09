@@ -28,6 +28,7 @@ type Site struct {
 	AWS_SECRET_KEY    string
 
 	MetaTitle  string
+	SiteTitle  string
 	AlbumTitle string
 }
 
@@ -44,7 +45,7 @@ func LoadSiteFromFile(path string) (*Site, error) {
 
 	requiredFields := []string{
 		"Domain", "Region", "Bucket", "UseImgix", "BaseUrl", "AWSKeyId", "AWSKey", "MetaTitle",
-		"AlbumTitle",
+		"SiteTitle", "AlbumTitle",
 	}
 	for _, v := range requiredFields {
 		if !section.HasKey(v) {
@@ -66,6 +67,7 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		AWS_SECRET_KEY:    section.Key("AWSKey").String(),
 
 		MetaTitle:  section.Key("MetaTitle").String(),
+		SiteTitle:  section.Key("SiteTitle").String(),
 		AlbumTitle: section.Key("AlbumTitle").String(),
 	}
 

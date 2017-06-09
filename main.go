@@ -31,13 +31,15 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			type HomeContext struct {
 				MetaTitle            string
-				PageTitle            string
+				SiteTitle            string
+				AlbumTitle           string
 				LoadAtStartImageUrls []string
 				LazyLoadImageUrls    []string
 			}
 
 			ctx := &HomeContext{
 				site.MetaTitle,
+				site.SiteTitle,
 				site.AlbumTitle,
 				imageUrls[:10],
 				imageUrls[10:],

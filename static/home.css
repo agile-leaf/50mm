@@ -3,10 +3,19 @@ body {
     padding: 0;
 
     background-color: #EEEEEE;
+    font-family: 'Merriweather', serif;
 }
 
-h1 {
+h1, h2 {
     font-family: 'Merriweather', serif;
+}
+
+h1.site-title {
+    margin-top: 5px;
+}
+
+h2.album-title {
+    text-align: center;
 }
 
 ul.images {
@@ -24,4 +33,5 @@ ul.images li {
 
 ul.images li img {
     width: 100%;
+    max-width: 800px;
 }
