@@ -21,3 +21,7 @@ ul.images li {
 
     text-align: center;
 }
+
+ul.images li img {
+    width: 100%;
+}
