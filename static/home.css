@@ -3,6 +3,8 @@ body {
     padding: 0;
 
     background-color: #EEEEEE;
+
+    font-size: 16px;
     font-family: 'Merriweather', serif;
 }
 
@@ -11,11 +13,13 @@ h1, h2 {
 }
 
 h1.site-title {
-    margin-top: 5px;
+    margin-top: 0;
+    margin-bottom: 16px;
 }
 
 h2.album-title {
     text-align: center;
+    margin: 0 0 8px 0;
 }
 
 ul.images {
