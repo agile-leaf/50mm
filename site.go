@@ -5,12 +5,13 @@ import (
 
 	"time"
 
+	"net/url"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-ini/ini"
-	"net/url"
 )
 
 type Site struct {
@@ -118,24 +119,9 @@ func (s *Site) GetAllImageKeys() ([]string, error) {
 	}
 
 	var imageKeys []string
-	var IMAGE_CONTENT_TYPES []string = []string{"image/jpeg", "image/png"}
-
 	for _, obj := range objects {
-		headOutput, err := svc.HeadObject(&s3.HeadObjectInput{
-			Bucket: aws.String(s.BucketName),
-			Key:    obj.Key,
-		})
-		if err != nil {
-			continue
-		}
-
-		for _, CT := range IMAGE_CONTENT_TYPES {
-			if CT == *headOutput.ContentType {
-				imageKeys = append(imageKeys, *obj.Key)
-			}
-		}
+		imageKeys = append(imageKeys, *obj.Key)
 	}
-
 	return imageKeys, nil
 }
 
