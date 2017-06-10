@@ -37,12 +37,17 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 				LazyLoadImageUrls    []string
 			}
 
+			loadAtStartImageUrls, lazyLoadImageUrls := imageUrls, imageUrls
+			if len(imageUrls) > 10 {
+				loadAtStartImageUrls = loadAtStartImageUrls[:10]
+				lazyLoadImageUrls = lazyLoadImageUrls[10:]
+			}
 			ctx := &HomeContext{
 				site.MetaTitle,
 				site.SiteTitle,
 				site.AlbumTitle,
-				imageUrls[:10],
-				imageUrls[10:],
+				loadAtStartImageUrls,
+				lazyLoadImageUrls,
 			}
 			templates.ExecuteTemplate(w, "home.html", ctx)
 		}
