@@ -25,7 +25,7 @@ type CachedSite struct {
 	CacheUpdateMutex sync.Mutex
 }
 
-type GetFromCache struct {
+type GetFromCacheResult struct {
 	keys []string
 	err  error
 }
@@ -73,14 +73,14 @@ func (cs *CachedSite) NeedsUpdate() bool {
 	return time.Now().Sub(cs.LastCacheUpdate) > CACHE_INTERVAL
 }
 
-func (cs *CachedSite) GetImageKeysFromCache() chan *GetFromCache {
-	c := make(chan *GetFromCache)
+func (cs *CachedSite) GetImageKeysFromCache() chan *GetFromCacheResult {
+	c := make(chan *GetFromCacheResult)
 	go func() {
 		var keys []string
 		var err error
 
 		if cs.KeyCache.Load() != nil {
-			c <- &GetFromCache{cs.KeyCache.Load().([]string), nil}
+			c <- &GetFromCacheResult{cs.KeyCache.Load().([]string), nil}
 
 			cs.CacheUpdateMutex.Lock()
 			if cs.NeedsUpdate() {
@@ -100,7 +100,7 @@ func (cs *CachedSite) GetImageKeysFromCache() chan *GetFromCache {
 				cs.KeyCache.Store(keys)
 				cs.LastCacheUpdate = time.Now()
 			}
-			c <- &GetFromCache{keys, err}
+			c <- &GetFromCacheResult{keys, err}
 
 			cs.CacheUpdateMutex.Unlock()
 		}
