@@ -18,12 +18,8 @@ type Site struct {
 	Domain          string
 	CanonicalSecure bool
 
-	AuthUser string
-	AuthPass string
-
 	BucketRegion string
 	BucketName   string
-	Prefix       string
 
 	UseImgix bool
 	BaseUrl  string
@@ -31,9 +27,8 @@ type Site struct {
 	AWS_SECRET_KEY_ID string
 	AWS_SECRET_KEY    string
 
-	MetaTitle  string
-	SiteTitle  string
-	AlbumTitle string
+	MetaTitle string
+	SiteTitle string
 }
 
 func LoadSiteFromFile(path string) (*Site, error) {
@@ -42,7 +37,7 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		return nil, err
 	}
 
-	section, err := cfg.GetSection("")
+	defaultSection, err := cfg.GetSection("")
 	if err != nil {
 		return nil, err
 	}
@@ -52,40 +47,40 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		"SiteTitle", "AlbumTitle",
 	}
 	for _, v := range requiredFields {
-		if !section.HasKey(v) {
+		if !defaultSection.HasKey(v) {
 			return nil, fmt.Errorf("Config file %s does not contain value of required key %s", path, v)
 		}
 	}
 
-	bucketName := section.Key("Bucket").String()
+	bucketName := defaultSection.Key("Bucket").String()
 	s := &Site{
-		Domain: section.Key("Domain").String(),
+		Domain: defaultSection.Key("Domain").String(),
 
-		BucketRegion: section.Key("Region").String(),
+		BucketRegion: defaultSection.Key("Region").String(),
 		BucketName:   bucketName,
 
-		UseImgix: section.Key("UseImgix").String() == "1",
-		BaseUrl:  section.Key("BaseUrl").String(),
+		UseImgix: defaultSection.Key("UseImgix").String() == "1",
+		BaseUrl:  defaultSection.Key("BaseUrl").String(),
 
-		AWS_SECRET_KEY_ID: section.Key("AWSKeyId").String(),
-		AWS_SECRET_KEY:    section.Key("AWSKey").String(),
+		AWS_SECRET_KEY_ID: defaultSection.Key("AWSKeyId").String(),
+		AWS_SECRET_KEY:    defaultSection.Key("AWSKey").String(),
 
-		MetaTitle:  section.Key("MetaTitle").String(),
-		SiteTitle:  section.Key("SiteTitle").String(),
-		AlbumTitle: section.Key("AlbumTitle").String(),
+		MetaTitle:  defaultSection.Key("MetaTitle").String(),
+		SiteTitle:  defaultSection.Key("SiteTitle").String(),
+		AlbumTitle: defaultSection.Key("AlbumTitle").String(),
 	}
 
-	if section.HasKey("AuthUser") && section.HasKey("AuthPass") {
-		s.AuthUser = section.Key("AuthUser").String()
-		s.AuthPass = section.Key("AuthPass").String()
+	if defaultSection.HasKey("AuthUser") && defaultSection.HasKey("AuthPass") {
+		s.AuthUser = defaultSection.Key("AuthUser").String()
+		s.AuthPass = defaultSection.Key("AuthPass").String()
 	}
 
-	if section.HasKey("Prefix") {
-		s.Prefix = section.Key("Prefix").String()
+	if defaultSection.HasKey("Prefix") {
+		s.Prefix = defaultSection.Key("Prefix").String()
 	}
 
-	if section.HasKey("CanonicalSecure") {
-		s.CanonicalSecure = section.Key("CanonicalSecure").String() == "1"
+	if defaultSection.HasKey("CanonicalSecure") {
+		s.CanonicalSecure = defaultSection.Key("CanonicalSecure").String() == "1"
 	}
 
 	return s, nil
