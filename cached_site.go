@@ -74,8 +74,6 @@ func (cs *CachedSite) NeedsUpdate() bool {
 }
 
 func (cs *CachedSite) GetImageKeysFromCache() chan *GetFromCache {
-	cs.CacheUpdateMutex.Lock()
-
 	c := make(chan *GetFromCache)
 	go func() {
 		var keys []string
@@ -84,6 +82,7 @@ func (cs *CachedSite) GetImageKeysFromCache() chan *GetFromCache {
 		if cs.KeyCache.Load() != nil {
 			c <- &GetFromCache{cs.KeyCache.Load().([]string), nil}
 
+			cs.CacheUpdateMutex.Lock()
 			if cs.NeedsUpdate() {
 				keys, err = cs.Site.GetAllImageKeys()
 				if err == nil {
@@ -91,16 +90,20 @@ func (cs *CachedSite) GetImageKeysFromCache() chan *GetFromCache {
 					cs.LastCacheUpdate = time.Now()
 				}
 			}
+
+			cs.CacheUpdateMutex.Unlock()
 		} else {
+			cs.CacheUpdateMutex.Lock()
+
 			keys, err = cs.Site.GetAllImageKeys()
 			if err == nil {
 				cs.KeyCache.Store(keys)
 				cs.LastCacheUpdate = time.Now()
 			}
 			c <- &GetFromCache{keys, err}
-		}
 
-		cs.CacheUpdateMutex.Unlock()
+			cs.CacheUpdateMutex.Unlock()
+		}
 	}()
 
 	return c
