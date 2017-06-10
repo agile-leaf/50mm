@@ -44,14 +44,14 @@ func (cs *CachedSite) GetAllImageUrls() ([]string, error) {
 
 	imageKeys, err := cs.GetAllImageKeys()
 	if err != nil {
-		fmt.Printf("Unable to get image keys from S3. Error: %s", err.Error())
+		fmt.Printf("Unable to get image keys from S3. Error: %s\n", err.Error())
 		return imageUrls, err
 	}
 
 	for _, v := range imageKeys {
 		imageUrl, err := cs.GetUrlForImage(v)
 		if err != nil {
-			fmt.Printf("Unable to create URL for key %s. Error: %s", v, err.Error())
+			fmt.Printf("Unable to create URL for key %s. Error: %s\n", v, err.Error())
 			continue
 		}
 		imageUrls = append(imageUrls, imageUrl)
