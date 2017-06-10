@@ -30,7 +30,17 @@ ul.images li {
     text-align: center;
 }
 
+ul.images li:last-child {
+    padding: 0;
+}
+
 ul.images li img {
     width: 100%;
     max-width: 800px;
+}
+
+p.built-with {
+    font-size: 14px;
+    margin: 0;
+    padding: 0;
 }
