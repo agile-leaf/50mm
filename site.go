@@ -108,11 +108,6 @@ func (s *Site) GetAllObjects() ([]*s3.Object, error) {
 }
 
 func (s *Site) GetAllImageKeys() ([]string, error) {
-	svc, err := s.GetS3Service()
-	if err != nil {
-		return nil, err
-	}
-
 	objects, err := s.GetAllObjects()
 	if err != nil {
 		return nil, err
