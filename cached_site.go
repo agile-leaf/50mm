@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const CACHE_INTERVAL = 10 * time.Second
+const CACHE_INTERVAL = 1 * time.Hour
 
 type CachedSite struct {
 	*Site
