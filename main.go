@@ -37,10 +37,10 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 				LazyLoadImageUrls    []string
 			}
 
-			loadAtStartImageUrls, lazyLoadImageUrls := imageUrls, imageUrls
+			loadAtStartImageUrls, lazyLoadImageUrls := imageUrls, []string{}
 			if len(imageUrls) > 10 {
-				loadAtStartImageUrls = loadAtStartImageUrls[:10]
-				lazyLoadImageUrls = lazyLoadImageUrls[10:]
+				loadAtStartImageUrls = imageUrls[:10]
+				lazyLoadImageUrls = imageUrls[10:]
 			}
 			ctx := &HomeContext{
 				site.MetaTitle,
