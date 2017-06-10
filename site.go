@@ -21,6 +21,7 @@ type Site struct {
 
 	BucketRegion string
 	BucketName   string
+	Prefix       string
 
 	UseImgix bool
 	BaseUrl  string
@@ -77,6 +78,10 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		s.AuthPass = section.Key("AuthPass").String()
 	}
 
+	if section.HasKey("Prefix") {
+		s.Prefix = section.Key("Prefix").String()
+	}
+
 	return s, nil
 }
 
@@ -99,7 +104,11 @@ func (s *Site) GetAllObjects() ([]*s3.Object, error) {
 		return nil, err
 	}
 
-	objects, err := svc.ListObjects(&s3.ListObjectsInput{Bucket: aws.String(s.BucketName)})
+	objects, err := svc.ListObjects(&s3.ListObjectsInput{
+		Bucket:    aws.String(s.BucketName),
+		Prefix:    aws.String(s.Prefix),
+		Delimiter: aws.String("/"),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -115,8 +124,12 @@ func (s *Site) GetAllImageKeys() ([]string, error) {
 
 	var imageKeys []string
 	for _, obj := range objects {
-		imageKeys = append(imageKeys, *obj.Key)
+		key := *obj.Key
+		if key[len(*obj.Key)-1] != '/' {
+			imageKeys = append(imageKeys, key)
+		}
 	}
+
 	return imageKeys, nil
 }
 
