@@ -30,11 +30,16 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(err.Error()))
 		} else {
 			type HomeContext struct {
-				MetaTitle            string
-				SiteTitle            string
-				AlbumTitle           string
+				SiteUrl string
+
+				MetaTitle  string
+				SiteTitle  string
+				AlbumTitle string
+
 				LoadAtStartImageUrls []string
 				LazyLoadImageUrls    []string
+
+				OgImageUrl string // OpenGraph image meta tag
 			}
 
 			loadAtStartImageUrls, lazyLoadImageUrls := imageUrls, []string{}
@@ -43,11 +48,16 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 				lazyLoadImageUrls = imageUrls[10:]
 			}
 			ctx := &HomeContext{
+				site.GetCanonicalUrl(),
 				site.MetaTitle,
 				site.SiteTitle,
 				site.AlbumTitle,
 				loadAtStartImageUrls,
 				lazyLoadImageUrls,
+				"",
+			}
+			if len(imageUrls) > 0 {
+				ctx.OgImageUrl = imageUrls[0]
 			}
 			templates.ExecuteTemplate(w, "home.html", ctx)
 		}

@@ -15,7 +15,9 @@ import (
 )
 
 type Site struct {
-	Domain   string
+	Domain          string
+	CanonicalSecure bool
+
 	AuthUser string
 	AuthPass string
 
@@ -82,9 +84,21 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		s.Prefix = section.Key("Prefix").String()
 	}
 
+	if section.HasKey("CanonicalSecure") {
+		s.CanonicalSecure = section.Key("CanonicalSecure").String() == "1"
+	}
+
 	return s, nil
 }
 
+func (s *Site) GetCanonicalUrl() string {
+	proto, domain := "http", s.Domain
+	if s.CanonicalSecure {
+		proto = "https"
+	}
+
+	return fmt.Sprintf("%s://%s", proto, domain)
+}
 func (s *Site) GetS3Service() (*s3.S3, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region:      aws.String(s.BucketRegion),
