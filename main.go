@@ -12,54 +12,72 @@ var templates *template.Template
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
 	domain := r.Host
+	path := r.URL.Path
+
 	if site, err := app.SiteForDomain(domain); err != nil {
-		w.WriteHeader(500)
+		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
+		return
 	} else {
-		if len(site.AuthUser) > 0 && len(site.AuthPass) > 0 {
-			if u, p, ok := r.BasicAuth(); !ok || u != site.AuthUser || subtle.ConstantTimeCompare([]byte(p), []byte(site.AuthPass)) != 1 {
-				w.Header().Set("WWW-Authenticate", `Basic realm="You need a username/password to access this site"`)
-				w.WriteHeader(401)
-				w.Write([]byte("Unauthorized\n"))
-				return
+		if album, err := site.GetAlbumForPath(path); err != nil {
+			// If the album name doesn't have a / at it's end, try to see if we can find that
+			if path[len(path)-1] != '/' {
+				if _, err := site.GetAlbumForPath(path + "/"); err == nil {
+					// If we did find it, redirect user to there
+					http.Redirect(w, r, path+"/", http.StatusMovedPermanently)
+					return
+				}
 			}
-		}
-
-		if imageUrls, err := site.GetAllImageUrls(); err != nil {
-			w.WriteHeader(500)
+			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte(err.Error()))
+			return
 		} else {
-			type HomeContext struct {
-				SiteUrl string
-
-				MetaTitle  string
-				SiteTitle  string
-				AlbumTitle string
-
-				LoadAtStartImageUrls []string
-				LazyLoadImageUrls    []string
-
-				OgImageUrl string // OpenGraph image meta tag
+			if len(album.AuthUser) > 0 && len(album.AuthPass) > 0 {
+				if u, p, ok := r.BasicAuth(); !ok || u != album.AuthUser || subtle.ConstantTimeCompare([]byte(p), []byte(album.AuthPass)) != 1 {
+					w.Header().Set("WWW-Authenticate", `Basic realm="You need a username/password to access this site"`)
+					w.WriteHeader(http.StatusUnauthorized)
+					w.Write([]byte("Unauthorized\n"))
+					return
+				}
 			}
 
-			loadAtStartImageUrls, lazyLoadImageUrls := imageUrls, []string{}
-			if len(imageUrls) > 10 {
-				loadAtStartImageUrls = imageUrls[:10]
-				lazyLoadImageUrls = imageUrls[10:]
+			if imageUrls, err := album.GetAllImageUrls(); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(err.Error()))
+				return
+			} else {
+				type HomeContext struct {
+					SiteUrl string
+
+					MetaTitle  string
+					SiteTitle  string
+					AlbumTitle string
+
+					LoadAtStartImageUrls []string
+					LazyLoadImageUrls    []string
+
+					OgImageUrl string // OpenGraph image meta tag
+				}
+
+				loadAtStartImageUrls, lazyLoadImageUrls := imageUrls, []string{}
+				if len(imageUrls) > 10 {
+					loadAtStartImageUrls = imageUrls[:10]
+					lazyLoadImageUrls = imageUrls[10:]
+				}
+				ctx := &HomeContext{
+					album.GetCanonicalUrl(),
+					album.MetaTitle,
+					site.SiteTitle,
+					album.AlbumTitle,
+					loadAtStartImageUrls,
+					lazyLoadImageUrls,
+					"",
+				}
+				if len(imageUrls) > 0 {
+					ctx.OgImageUrl = imageUrls[0]
+				}
+				templates.ExecuteTemplate(w, "home.html", ctx)
 			}
-			ctx := &HomeContext{
-				site.GetCanonicalUrl(),
-				site.MetaTitle,
-				site.SiteTitle,
-				site.AlbumTitle,
-				loadAtStartImageUrls,
-				lazyLoadImageUrls,
-				"",
-			}
-			if len(imageUrls) > 0 {
-				ctx.OgImageUrl = imageUrls[0]
-			}
-			templates.ExecuteTemplate(w, "home.html", ctx)
 		}
 	}
 }

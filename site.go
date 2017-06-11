@@ -7,6 +7,7 @@ import (
 
 	"net/url"
 
+	"errors"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -24,11 +25,12 @@ type Site struct {
 	UseImgix bool
 	BaseUrl  string
 
-	AWS_SECRET_KEY_ID string
-	AWS_SECRET_KEY    string
+	AWS_SECRET_KEY_ID string `ini:"AWSKeyId"`
+	AWS_SECRET_KEY    string `ini:"AWSKey"`
 
-	MetaTitle string
 	SiteTitle string
+
+	Albums []*Album
 }
 
 func LoadSiteFromFile(path string) (*Site, error) {
@@ -42,58 +44,45 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		return nil, err
 	}
 
-	requiredFields := []string{
-		"Domain", "Region", "Bucket", "UseImgix", "BaseUrl", "AWSKeyId", "AWSKey", "MetaTitle",
-		"SiteTitle", "AlbumTitle",
+	s := &Site{}
+	if err := defaultSection.MapTo(s); err != nil {
+		return nil, err
 	}
-	for _, v := range requiredFields {
-		if !defaultSection.HasKey(v) {
-			return nil, fmt.Errorf("Config file %s does not contain value of required key %s", path, v)
+
+	if s.BucketRegion == "" && s.BucketName == "" {
+		s.BucketRegion = defaultSection.Key("Region").String()
+		s.BucketName = defaultSection.Key("Bucket").String()
+	}
+
+	if s.Domain == "" || s.BucketRegion == "" || s.BucketName == "" || s.AWS_SECRET_KEY_ID == "" || s.AWS_SECRET_KEY == "" {
+		return nil, errors.New("Domain, BucketRegion, BucketName, AWSKeyId, and AWSKey are required parameters that must have valid values")
+	}
+
+	for _, section := range cfg.Sections() {
+		if section.Name() == "DEFAULT" {
+			continue
+		}
+
+		if album, err := NewAlbumFromConfig(section, s); err != nil {
+			return nil, err
+		} else {
+			s.Albums = append(s.Albums, album)
 		}
 	}
 
-	bucketName := defaultSection.Key("Bucket").String()
-	s := &Site{
-		Domain: defaultSection.Key("Domain").String(),
-
-		BucketRegion: defaultSection.Key("Region").String(),
-		BucketName:   bucketName,
-
-		UseImgix: defaultSection.Key("UseImgix").String() == "1",
-		BaseUrl:  defaultSection.Key("BaseUrl").String(),
-
-		AWS_SECRET_KEY_ID: defaultSection.Key("AWSKeyId").String(),
-		AWS_SECRET_KEY:    defaultSection.Key("AWSKey").String(),
-
-		MetaTitle:  defaultSection.Key("MetaTitle").String(),
-		SiteTitle:  defaultSection.Key("SiteTitle").String(),
-		AlbumTitle: defaultSection.Key("AlbumTitle").String(),
-	}
-
-	if defaultSection.HasKey("AuthUser") && defaultSection.HasKey("AuthPass") {
-		s.AuthUser = defaultSection.Key("AuthUser").String()
-		s.AuthPass = defaultSection.Key("AuthPass").String()
-	}
-
-	if defaultSection.HasKey("Prefix") {
-		s.Prefix = defaultSection.Key("Prefix").String()
-	}
-
-	if defaultSection.HasKey("CanonicalSecure") {
-		s.CanonicalSecure = defaultSection.Key("CanonicalSecure").String() == "1"
+	if len(s.Albums) == 0 { // Check if the config is old style and create default album
+		if album, err := NewAlbum(s, "/", defaultSection.Key("Prefix").String(),
+			defaultSection.Key("AuthUser").String(), defaultSection.Key("AuthPass").String(),
+			defaultSection.Key("MetaTitle").String(), defaultSection.Key("AlbumTitle").String()); err != nil {
+			return nil, err
+		} else {
+			s.Albums = append(s.Albums, album)
+		}
 	}
 
 	return s, nil
 }
 
-func (s *Site) GetCanonicalUrl() string {
-	proto, domain := "http", s.Domain
-	if s.CanonicalSecure {
-		proto = "https"
-	}
-
-	return fmt.Sprintf("%s://%s", proto, domain)
-}
 func (s *Site) GetS3Service() (*s3.S3, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region:      aws.String(s.BucketRegion),
@@ -105,41 +94,6 @@ func (s *Site) GetS3Service() (*s3.S3, error) {
 	}
 
 	return s3.New(sess), nil
-}
-
-func (s *Site) GetAllObjects() ([]*s3.Object, error) {
-	svc, err := s.GetS3Service()
-	if err != nil {
-		return nil, err
-	}
-
-	objects, err := svc.ListObjects(&s3.ListObjectsInput{
-		Bucket:    aws.String(s.BucketName),
-		Prefix:    aws.String(s.Prefix),
-		Delimiter: aws.String("/"),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return objects.Contents, nil
-}
-
-func (s *Site) GetAllImageKeys() ([]string, error) {
-	objects, err := s.GetAllObjects()
-	if err != nil {
-		return nil, err
-	}
-
-	var imageKeys []string
-	for _, obj := range objects {
-		key := *obj.Key
-		if key[len(*obj.Key)-1] != '/' {
-			imageKeys = append(imageKeys, key)
-		}
-	}
-
-	return imageKeys, nil
 }
 
 func (s *Site) GetUrlForImage(key string) (string, error) {
@@ -181,4 +135,14 @@ func (s *Site) GetImgixUrl(key string) (string, error) {
 	}
 
 	return fmt.Sprintf("%s?w=800", baseUrl.ResolveReference(keyPath).String()), nil
+}
+
+func (s *Site) GetAlbumForPath(path string) (*Album, error) {
+	for _, album := range s.Albums {
+		if album.Path == path {
+			return album, nil
+		}
+	}
+
+	return nil, fmt.Errorf("Could not find album in site %s for path '%s'", s.Domain, path)
 }
