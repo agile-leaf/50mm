@@ -65,7 +65,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 					lazyLoadImageUrls = imageUrls[10:]
 				}
 				ctx := &HomeContext{
-					album.GetCanonicalUrl(),
+					album.GetCanonicalUrl().String(),
 					album.MetaTitle,
 					site.SiteTitle,
 					album.AlbumTitle,

@@ -1,13 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-
+	"net/url"
 	"time"
 
-	"net/url"
-
-	"errors"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -81,6 +79,18 @@ func LoadSiteFromFile(path string) (*Site, error) {
 	}
 
 	return s, nil
+}
+
+func (s *Site) GetCanonicalUrl() *url.URL {
+	proto, domain := "http", s.Domain
+	if s.CanonicalSecure {
+		proto = "https"
+	}
+
+	return &url.URL{
+		Scheme: proto,
+		Host:   domain,
+	}
 }
 
 func (s *Site) GetS3Service() (*s3.S3, error) {

@@ -3,12 +3,14 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/go-ini/ini"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/go-ini/ini"
 )
 
 const CACHE_INTERVAL = 1 * time.Hour
@@ -75,13 +77,10 @@ func (a *Album) IsValid() error {
 	return nil
 }
 
-func (a *Album) GetCanonicalUrl() string {
-	proto, domain := "http", a.site.Domain
-	if a.site.CanonicalSecure {
-		proto = "https"
-	}
-
-	return fmt.Sprintf("%s://%s%s", proto, domain, a.Path)
+func (a *Album) GetCanonicalUrl() *url.URL {
+	u := a.site.GetCanonicalUrl()
+	u.Path = a.Path
+	return u
 }
 
 func (a *Album) GetAllObjects() ([]*s3.Object, error) {
