@@ -70,8 +70,8 @@ func NewAlbum(s *Site, path string, bucketPrefix string, authUser string, authPa
 }
 
 func (a *Album) IsValid() error {
-	if a.Path == "" || a.BucketPrefix == "" {
-		return errors.New("Path and BucketPrefix and required parameters that must have valid values")
+	if a.Path == "" {
+		return errors.New("Path is a required parameters that must have a valid value")
 	}
 
 	return nil
