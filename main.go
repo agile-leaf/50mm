@@ -10,6 +10,75 @@ import (
 var app *App
 var templates *template.Template
 
+type BasePageContext struct {
+	SiteUrl string
+
+	MetaTitle string
+	SiteTitle string
+}
+
+type AlbumsIndexPageContext struct {
+	*BasePageContext
+	a *Album
+}
+
+type AlbumPageContext struct {
+	*BasePageContext
+
+	AlbumTitle string
+
+	LoadAtStartImageUrls []string
+	LazyLoadImageUrls    []string
+
+	OgImageUrl string // OpenGraph image meta tag
+}
+
+func handleAlbumPage(album *Album, w http.ResponseWriter, r *http.Request) {
+	if len(album.AuthUser) > 0 && len(album.AuthPass) > 0 {
+		if u, p, ok := r.BasicAuth(); !ok || u != album.AuthUser || subtle.ConstantTimeCompare([]byte(p), []byte(album.AuthPass)) != 1 {
+			w.Header().Set("WWW-Authenticate", `Basic realm="You need a username/password to access this site"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("Unauthorized\n"))
+			return
+		}
+	}
+
+	if imageUrls, err := album.GetAllImageUrls(); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	} else {
+		loadAtStartImageUrls, lazyLoadImageUrls := imageUrls, []string{}
+		if len(imageUrls) > 10 {
+			loadAtStartImageUrls = imageUrls[:10]
+			lazyLoadImageUrls = imageUrls[10:]
+		}
+		ctx := &AlbumPageContext{
+			&BasePageContext{
+				album.GetCanonicalUrl().String(),
+				album.MetaTitle,
+				album.site.SiteTitle,
+			},
+			album.AlbumTitle,
+			loadAtStartImageUrls,
+			lazyLoadImageUrls,
+			"",
+		}
+		if coverPhotoUrl, err := album.GetCoverPhotoUrl(); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+			return
+		} else {
+			ctx.OgImageUrl = coverPhotoUrl
+		}
+		templates.ExecuteTemplate(w, "home.html", ctx)
+	}
+}
+
+func handleAlbumIndex(site *Site, w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("Albums List"))
+}
+
 func homeHandler(w http.ResponseWriter, r *http.Request) {
 	domain := r.Host
 	path := r.URL.Path
@@ -19,6 +88,11 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(err.Error()))
 		return
 	} else {
+		if site.HasAlbumIndex && path == "/" {
+			handleAlbumIndex(site, w, r)
+			return
+		}
+
 		if album, err := site.GetAlbumForPath(path); err != nil {
 			// If the album name doesn't have a / at it's end, try to see if we can find that
 			if path[len(path)-1] != '/' {
@@ -32,52 +106,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(err.Error()))
 			return
 		} else {
-			if len(album.AuthUser) > 0 && len(album.AuthPass) > 0 {
-				if u, p, ok := r.BasicAuth(); !ok || u != album.AuthUser || subtle.ConstantTimeCompare([]byte(p), []byte(album.AuthPass)) != 1 {
-					w.Header().Set("WWW-Authenticate", `Basic realm="You need a username/password to access this site"`)
-					w.WriteHeader(http.StatusUnauthorized)
-					w.Write([]byte("Unauthorized\n"))
-					return
-				}
-			}
-
-			if imageUrls, err := album.GetAllImageUrls(); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(err.Error()))
-				return
-			} else {
-				type HomeContext struct {
-					SiteUrl string
-
-					MetaTitle  string
-					SiteTitle  string
-					AlbumTitle string
-
-					LoadAtStartImageUrls []string
-					LazyLoadImageUrls    []string
-
-					OgImageUrl string // OpenGraph image meta tag
-				}
-
-				loadAtStartImageUrls, lazyLoadImageUrls := imageUrls, []string{}
-				if len(imageUrls) > 10 {
-					loadAtStartImageUrls = imageUrls[:10]
-					lazyLoadImageUrls = imageUrls[10:]
-				}
-				ctx := &HomeContext{
-					album.GetCanonicalUrl().String(),
-					album.MetaTitle,
-					site.SiteTitle,
-					album.AlbumTitle,
-					loadAtStartImageUrls,
-					lazyLoadImageUrls,
-					"",
-				}
-				if len(imageUrls) > 0 {
-					ctx.OgImageUrl = imageUrls[0]
-				}
-				templates.ExecuteTemplate(w, "home.html", ctx)
-			}
+			handleAlbumPage(album, w, r)
 		}
 	}
 }

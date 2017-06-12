@@ -28,7 +28,8 @@ type Site struct {
 
 	SiteTitle string
 
-	Albums []*Album
+	HasAlbumIndex bool
+	Albums        []*Album
 }
 
 func LoadSiteFromFile(path string) (*Site, error) {
@@ -50,10 +51,6 @@ func LoadSiteFromFile(path string) (*Site, error) {
 	if s.BucketRegion == "" && s.BucketName == "" {
 		s.BucketRegion = defaultSection.Key("Region").String()
 		s.BucketName = defaultSection.Key("Bucket").String()
-	}
-
-	if s.Domain == "" || s.BucketRegion == "" || s.BucketName == "" || s.AWS_SECRET_KEY_ID == "" || s.AWS_SECRET_KEY == "" {
-		return nil, errors.New("Domain, BucketRegion, BucketName, AWSKeyId, and AWSKey are required parameters that must have valid values")
 	}
 
 	for _, section := range cfg.Sections() {
@@ -78,7 +75,31 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		}
 	}
 
+	if err := s.IsValid(); err != nil {
+		return nil, err
+	}
+
 	return s, nil
+}
+
+func (s *Site) IsValid() error {
+	if s.Domain == "" || s.BucketRegion == "" || s.BucketName == "" || s.AWS_SECRET_KEY_ID == "" || s.AWS_SECRET_KEY == "" {
+		return errors.New("Domain, BucketRegion, BucketName, AWSKeyId, and AWSKey are required parameters that must have valid values")
+	}
+
+	if len(s.Albums) == 0 {
+		return errors.New("Can't have a site with 0 albums")
+	}
+
+	if s.HasAlbumIndex {
+		for _, a := range s.Albums {
+			if a.Path == "/" {
+				return errors.New("Site can't have an index and an album at path '/'")
+			}
+		}
+	}
+
+	return nil
 }
 
 func (s *Site) GetCanonicalUrl() *url.URL {

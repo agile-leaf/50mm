@@ -27,6 +27,8 @@ type Album struct {
 	MetaTitle  string
 	AlbumTitle string
 
+	InIndex bool
+
 	KeyCache        atomic.Value
 	LastCacheUpdate time.Time
 
@@ -39,7 +41,7 @@ type GetFromCacheResult struct {
 }
 
 func NewAlbumFromConfig(section *ini.Section, s *Site) (*Album, error) {
-	album := &Album{site: s}
+	album := &Album{site: s, InIndex: true}
 	if err := section.MapTo(album); err != nil {
 		return nil, err
 	}
@@ -60,6 +62,7 @@ func NewAlbum(s *Site, path string, bucketPrefix string, authUser string, authPa
 		AuthPass:     authPass,
 		MetaTitle:    metaTitle,
 		AlbumTitle:   albumTitle,
+		InIndex:      true,
 	}
 
 	if err := album.IsValid(); err != nil {
@@ -81,6 +84,18 @@ func (a *Album) GetCanonicalUrl() *url.URL {
 	u := a.site.GetCanonicalUrl()
 	u.Path = a.Path
 	return u
+}
+
+func (a *Album) GetCoverPhotoUrl() (string, error) {
+	if photoUrls, err := a.GetAllImageUrls(); err != nil {
+		return "", err
+	} else {
+		if len(photoUrls) > 0 {
+			return photoUrls[0], nil
+		}
+	}
+
+	return "", nil
 }
 
 func (a *Album) GetAllObjects() ([]*s3.Object, error) {

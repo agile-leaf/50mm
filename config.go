@@ -44,6 +44,7 @@ func NewApp() *App {
 		siteConfig, loadErr := LoadSiteFromFile(path)
 		if loadErr != nil {
 			fmt.Printf("Unable to load config from file %s. Error: %s\n", path, loadErr.Error())
+			return nil
 		}
 
 		configFilesMap[siteConfig.Domain] = siteConfig
