@@ -27,8 +27,8 @@ type AlbumPageContext struct {
 
 	AlbumTitle string
 
-	LoadAtStartImageUrls []string
-	LazyLoadImageUrls    []string
+	ImageUrls              []string
+	NumImagesToLoadAtStart int
 
 	OgImageUrl string // OpenGraph image meta tag
 }
@@ -48,11 +48,6 @@ func handleAlbumPage(album *Album, w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(err.Error()))
 		return
 	} else {
-		loadAtStartImageUrls, lazyLoadImageUrls := imageUrls, []string{}
-		if len(imageUrls) > 10 {
-			loadAtStartImageUrls = imageUrls[:10]
-			lazyLoadImageUrls = imageUrls[10:]
-		}
 		ctx := &AlbumPageContext{
 			&BasePageContext{
 				album.GetCanonicalUrl().String(),
@@ -60,8 +55,8 @@ func handleAlbumPage(album *Album, w http.ResponseWriter, r *http.Request) {
 				album.site.SiteTitle,
 			},
 			album.AlbumTitle,
-			loadAtStartImageUrls,
-			lazyLoadImageUrls,
+			imageUrls,
+			10,
 			"",
 		}
 		if coverPhotoUrl, err := album.GetCoverPhotoUrl(); err != nil {
