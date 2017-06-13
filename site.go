@@ -17,6 +17,9 @@ type Site struct {
 	Domain          string
 	CanonicalSecure bool
 
+	AuthUser string
+	AuthPass string
+
 	BucketRegion string
 	BucketName   string
 
@@ -100,6 +103,18 @@ func (s *Site) IsValid() error {
 	}
 
 	return nil
+}
+
+func (s *Site) HasAuth() bool {
+	return s.AuthUser != "" && s.AuthPass != ""
+}
+
+func (s *Site) GetAuthUser() string {
+	return s.AuthUser
+}
+
+func (s *Site) GetAuthPass() string {
+	return s.AuthPass
 }
 
 func (s *Site) GetCanonicalUrl() *url.URL {

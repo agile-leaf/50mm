@@ -10,6 +10,11 @@ import (
 var app *App
 var templates *template.Template
 
+type AuthCredentialsProvider interface {
+	GetAuthUser() string
+	GetAuthPass() string
+}
+
 type BasePageContext struct {
 	SiteUrl string
 
@@ -34,13 +39,8 @@ type AlbumPageContext struct {
 }
 
 func handleAlbumPage(album *Album, w http.ResponseWriter, r *http.Request) {
-	if len(album.AuthUser) > 0 && len(album.AuthPass) > 0 {
-		if u, p, ok := r.BasicAuth(); !ok || u != album.AuthUser || subtle.ConstantTimeCompare([]byte(p), []byte(album.AuthPass)) != 1 {
-			w.Header().Set("WWW-Authenticate", `Basic realm="You need a username/password to access this site"`)
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("Unauthorized\n"))
-			return
-		}
+	if album.HasAuth() && !checkAndRequireAuth(w, r, album) {
+		return
 	}
 
 	if imageUrls, err := album.GetAllImageUrls(); err != nil {
@@ -70,11 +70,11 @@ func handleAlbumPage(album *Album, w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handleAlbumIndex(site *Site, w http.ResponseWriter, r *http.Request) {
+func handleAlbumsIndex(site *Site, w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Albums List"))
 }
 
-func homeHandler(w http.ResponseWriter, r *http.Request) {
+func siteHandler(w http.ResponseWriter, r *http.Request) {
 	domain := r.Host
 	path := r.URL.Path
 
@@ -84,12 +84,16 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	} else {
 		if site.HasAlbumIndex && path == "/" {
-			handleAlbumIndex(site, w, r)
+			if site.HasAuth() && !checkAndRequireAuth(w, r, site) {
+				return
+			}
+
+			handleAlbumsIndex(site, w, r)
 			return
 		}
 
 		if album, err := site.GetAlbumForPath(path); err != nil {
-			// If the album name doesn't have a / at it's end, try to see if we can find that
+			// If the path doesn't have a / at it's end, try to see if we can find an album after adding the /
 			if path[len(path)-1] != '/' {
 				if _, err := site.GetAlbumForPath(path + "/"); err == nil {
 					// If we did find it, redirect user to there
@@ -106,11 +110,21 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func checkAndRequireAuth(w http.ResponseWriter, r *http.Request, provider AuthCredentialsProvider) bool {
+	if u, p, ok := r.BasicAuth(); !ok || u != provider.GetAuthUser() || subtle.ConstantTimeCompare([]byte(p), []byte(provider.GetAuthPass())) != 1 {
+		w.Header().Set("WWW-Authenticate", `Basic realm="You need a username/password to access this page"`)
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("Unauthorized\n"))
+		return false
+	}
+	return true
+}
+
 func main() {
 	app = NewApp()
 	templates = template.Must(template.ParseFiles("templates/home.html"))
 
-	http.HandleFunc("/", homeHandler)
+	http.HandleFunc("/", siteHandler)
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static/"))))
 
 	fmt.Printf("Starting server at port %s\n", app.port)

@@ -74,10 +74,39 @@ func NewAlbum(s *Site, path string, bucketPrefix string, authUser string, authPa
 
 func (a *Album) IsValid() error {
 	if a.Path == "" {
-		return errors.New("Path is a required parameters that must have a valid value")
+		return errors.New("'Path' is a required parameters that must have a valid value.")
 	}
 
+	if a.InIndex && a.HasOwnAuth() {
+		return errors.New("An album that requires authentication can't be shown in the index. If you need authentication please add it to the site.")
+	}
 	return nil
+}
+
+func (a *Album) HasOwnAuth() bool {
+	return a.AuthUser != "" && a.AuthPass != ""
+}
+
+// An album inherits it's sites auth settings if the album config doesn't override them. If both the site and album have
+// auth enabled, the album auth takes precedence
+func (a *Album) HasAuth() bool {
+	return a.site.HasAuth() || a.HasOwnAuth()
+}
+
+func (a *Album) GetAuthUser() string {
+	if a.AuthUser != "" {
+		return a.AuthUser
+	} else {
+		return a.site.AuthUser
+	}
+}
+
+func (a *Album) GetAuthPass() string {
+	if a.AuthPass != "" {
+		return a.AuthPass
+	} else {
+		return a.site.AuthPass
+	}
 }
 
 func (a *Album) GetCanonicalUrl() *url.URL {
