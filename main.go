@@ -4,8 +4,11 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
 )
+
+const DEBUG = true
 
 var app *App
 var templates *template.Template
@@ -32,10 +35,19 @@ type AlbumPageContext struct {
 
 	AlbumTitle string
 
-	ImageUrls              []string
+	Photos                 []Renderable
 	NumImagesToLoadAtStart int
 
-	OgImageUrl string // OpenGraph image meta tag
+	OgPhoto Renderable // OpenGraph image meta tag
+}
+
+func executeTemplateHelper(w io.Writer, templateName string, ctx interface{}) {
+	if DEBUG {
+		tmpl := template.Must(template.ParseFiles(fmt.Sprintf("templates/%s", templateName)))
+		tmpl.Execute(w, ctx)
+	} else {
+		templates.ExecuteTemplate(w, templateName, ctx)
+	}
 }
 
 func handleAlbumPage(album *Album, w http.ResponseWriter, r *http.Request) {
@@ -43,7 +55,7 @@ func handleAlbumPage(album *Album, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if imageUrls, err := album.GetAllImageUrls(); err != nil {
+	if imageUrls, err := album.GetAllPhotos(); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
 		return
@@ -57,21 +69,35 @@ func handleAlbumPage(album *Album, w http.ResponseWriter, r *http.Request) {
 			album.AlbumTitle,
 			imageUrls,
 			10,
-			"",
+			nil,
 		}
-		if coverPhotoUrl, err := album.GetCoverPhotoUrl(); err != nil {
+		if coverPhoto, err := album.GetCoverPhoto(); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(err.Error()))
 			return
 		} else {
-			ctx.OgImageUrl = coverPhotoUrl
+			ctx.OgPhoto = coverPhoto
 		}
-		templates.ExecuteTemplate(w, "home.html", ctx)
+		executeTemplateHelper(w, "album.html", ctx)
 	}
 }
 
 func handleAlbumsIndex(site *Site, w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Albums List"))
+	type AlbumsIndexContext struct {
+		MetaTitle string
+		SiteTitle string
+		SiteUrl   string
+		Albums    []*Album
+	}
+
+	ctx := &AlbumsIndexContext{
+		site.MetaTitle,
+		site.SiteTitle,
+		site.GetCanonicalUrl().String(),
+		site.Albums,
+	}
+
+	executeTemplateHelper(w, "index.html", ctx)
 }
 
 func siteHandler(w http.ResponseWriter, r *http.Request) {
@@ -122,7 +148,7 @@ func checkAndRequireAuth(w http.ResponseWriter, r *http.Request, provider AuthCr
 
 func main() {
 	app = NewApp()
-	templates = template.Must(template.ParseFiles("templates/home.html"))
+	templates = template.Must(template.ParseFiles("templates/album.html"))
 
 	http.HandleFunc("/", siteHandler)
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static/"))))

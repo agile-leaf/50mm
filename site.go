@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -30,9 +29,12 @@ type Site struct {
 	AWS_SECRET_KEY    string `ini:"AWSKey"`
 
 	SiteTitle string
+	MetaTitle string
 
 	HasAlbumIndex bool
 	Albums        []*Album
+
+	awsSession *session.Session
 }
 
 func LoadSiteFromFile(path string) (*Site, error) {
@@ -79,6 +81,19 @@ func LoadSiteFromFile(path string) (*Site, error) {
 	}
 
 	if err := s.IsValid(); err != nil {
+		return nil, err
+	}
+
+	if sess, err := session.NewSession(&aws.Config{
+		Region:      aws.String(s.BucketRegion),
+		Credentials: credentials.NewStaticCredentials(s.AWS_SECRET_KEY_ID, s.AWS_SECRET_KEY, ""),
+	}); err != nil {
+		return nil, err
+	} else {
+		s.awsSession = sess
+	}
+
+	if err != nil {
 		return nil, err
 	}
 
@@ -130,57 +145,35 @@ func (s *Site) GetCanonicalUrl() *url.URL {
 }
 
 func (s *Site) GetS3Service() (*s3.S3, error) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(s.BucketRegion),
-		Credentials: credentials.NewStaticCredentials(s.AWS_SECRET_KEY_ID, s.AWS_SECRET_KEY, ""),
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return s3.New(sess), nil
+	return s3.New(s.awsSession), nil
 }
 
-func (s *Site) GetUrlForImage(key string) (string, error) {
+func (s *Site) GetPhotoForKey(key string) Renderable {
 	if s.UseImgix {
-		return s.GetImgixUrl(key)
+		return s.GetImgixPhoto(key)
 	} else {
-		return s.GetAwsUrl(key)
+		return s.GetS3Photo(key)
 	}
 }
 
-func (s *Site) GetAwsUrl(key string) (string, error) {
-	svc, err := s.GetS3Service()
-	if err != nil {
-		return "", err
+func (s *Site) GetS3Photo(key string) *S3Photo {
+	return &S3Photo{
+		key,
+		s.BucketName,
+		s.awsSession,
 	}
-
-	req, _ := svc.GetObjectRequest(&s3.GetObjectInput{
-		Bucket: aws.String(s.BucketName),
-		Key:    aws.String(key),
-	})
-
-	signedUrl, err := req.Presign(24 * time.Hour)
-	if err != nil {
-		return "", err
-	}
-
-	return signedUrl, nil
 }
 
-func (s *Site) GetImgixUrl(key string) (string, error) {
-	baseUrl, err := url.Parse(s.BaseUrl)
-	if err != nil {
-		return "", err
+func (s *Site) GetImgixPhoto(key string) *ImgixPhoto {
+	if baseUrl, err := url.Parse(s.BaseUrl); err != nil {
+		fmt.Printf("Error trying to parse site base URL. Error: %s\n", err.Error())
+		return nil
+	} else {
+		return &ImgixPhoto{
+			key,
+			baseUrl,
+		}
 	}
-
-	keyPath, err := url.Parse(key)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%s?w=800", baseUrl.ResolveReference(keyPath).String()), nil
 }
 
 func (s *Site) GetAlbumForPath(path string) (*Album, error) {

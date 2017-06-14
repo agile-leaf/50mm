@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{.MetaTitle}}</title>
+
+    <link href="https://fonts.googleapis.com/css?family=Merriweather" rel="stylesheet">
+    <link rel="stylesheet" href="/static/index.css">
+
+    <meta property="og:url" content="{{.SiteUrl}}" />
+    <meta property="og:title" content="{{.MetaTitle}}" />
+    {{if .Albums}}
+    {{with $firstAlbum := index .Albums 0}}
+    <meta property="og:image" content="{{$firstAlbum.GetCoverPhotoForTemplate.GetUrlForWidth 800}}" />
+    {{end}}
+    {{end}}
+
+</head>
+<body>
+    <div class="header">
+        <h1>{{.SiteTitle}}</h1>
+    </div>
+
+    {{range .Albums}}
+    <div class="album">
+        <div class="album-header-wrapper">
+            <div class="album-header">
+                <h2>{{.AlbumTitle}}</h2>
+            </div>
+            <div class="view-all-lg">
+                <a href="{{.GetCanonicalUrl}}">View All</a>
+            </div>
+        </div>
+        <div class="photos">
+            <div class="cover">
+                <img src="{{.GetCoverPhotoForTemplate.GetUrlForWidth 800}}" />
+            </div>
+            <div class="thumbs">
+                <ul>
+                {{range .GetThumbnailPhotosForTemplate}}
+                    <li><img src="{{.GetUrlForWidth 150}}"></li>
+                {{end}}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {{end}}
+</body>
+</html>

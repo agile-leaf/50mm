@@ -115,16 +115,38 @@ func (a *Album) GetCanonicalUrl() *url.URL {
 	return u
 }
 
-func (a *Album) GetCoverPhotoUrl() (string, error) {
-	if photoUrls, err := a.GetAllImageUrls(); err != nil {
-		return "", err
+func (a *Album) GetCoverPhoto() (Renderable, error) {
+	if photos, err := a.GetAllPhotos(); err != nil {
+		return nil, err
 	} else {
-		if len(photoUrls) > 0 {
-			return photoUrls[0], nil
+		if len(photos) > 0 {
+			return photos[0], nil
 		}
 	}
 
-	return "", nil
+	return &ErrorPhoto{}, nil
+}
+
+func (a *Album) GetCoverPhotoForTemplate() Renderable {
+	if photo, err := a.GetCoverPhoto(); err != nil {
+		fmt.Printf("Unable to get cover photo. Error: %s\n", err.Error())
+		return &ErrorPhoto{}
+	} else {
+		return photo
+	}
+}
+
+func (a *Album) GetThumbnailPhotosForTemplate() []Renderable {
+	if photos, err := a.GetAllPhotos(); err != nil {
+		fmt.Printf("Unable to get thumbnail photos. Error: %s\n", err.Error())
+		return nil
+	} else {
+		if len(photos) > 6 {
+			return photos[1:6]
+		} else {
+			return photos[1:]
+		}
+	}
 }
 
 func (a *Album) GetAllObjects() ([]*s3.Object, error) {
@@ -162,8 +184,8 @@ func (a *Album) GetAllImageKeysFromBucket() ([]string, error) {
 	return imageKeys, nil
 }
 
-func (a *Album) GetAllImageUrls() ([]string, error) {
-	var imageUrls []string = []string{}
+func (a *Album) GetAllPhotos() ([]Renderable, error) {
+	var imageUrls []Renderable
 
 	imageKeys, err := a.GetAllImageKeys()
 	if err != nil {
@@ -172,11 +194,7 @@ func (a *Album) GetAllImageUrls() ([]string, error) {
 	}
 
 	for _, v := range imageKeys {
-		imageUrl, err := a.site.GetUrlForImage(v)
-		if err != nil {
-			fmt.Printf("Unable to create URL for key %s. Error: %s\n", v, err.Error())
-			continue
-		}
+		imageUrl := a.site.GetPhotoForKey(v)
 		imageUrls = append(imageUrls, imageUrl)
 	}
 
