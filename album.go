@@ -164,7 +164,7 @@ func (a *Album) GetAllObjects() ([]*s3.Object, error) {
 		return nil, err
 	}
 
-	return objects.Contents, nil
+	return objects.Contents[:10], nil
 }
 
 func (a *Album) GetAllImageKeysFromBucket() ([]string, error) {

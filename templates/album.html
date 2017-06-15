@@ -4,41 +4,45 @@
     <meta charset="UTF-8">
     <title>{{.MetaTitle}}</title>
 
-    <link rel="stylesheet" href="/static/simple-grid.min.css">
+    <link rel="stylesheet" href="/static/base.css">
     <link rel="stylesheet" href="/static/album.css">
 
-    <meta property="og:url" content="{{.SiteUrl}}" />
+    <meta name="viewport" content="width=device-width">
+    <meta property="og:url" content="{{.CanonicalUrl}}" />
     <meta property="og:title" content="{{.MetaTitle}}" />
     <meta property="og:image" content="{{.OgPhoto.GetUrlForWidth 800}}" />
 </head>
 <body>
     <div class="container">
-        <div class="row">
-            <div class="col-12">
-                <h1 class="site-title">{{.SiteTitle}}</h1>
-                <h2 class="album-title">{{.AlbumTitle}}</h2>
-            </div>
+        <div class="header">
+            <h1>
+                <a href="{{.SiteUrl}}">{{.SiteTitle}}</a>
+            </h1>
         </div>
-
         <div class="row">
-            <div class="col-12">
-                <ul class="images">
-                    {{range $index, $photo := .Photos}}
-                    <li>
-                        {{if lt $index $.NumImagesToLoadAtStart}}
-                        <img src="{{$photo.GetUrlForWidth 800}}">
-                        {{else}}
-                        <img class="lazy" src="/static/placeholder.png" data-echo="{{$photo.GetUrlForWidth 800}}">
+            <div class="album">
+                <div class="album-header-wrapper">
+                    <div class="album-title">
+                        <h2>{{.AlbumTitle}}</h2>
+                    </div>
+                </div>
+                <div class="photos">
+                    <ul class="images">
+                        {{range $index, $photo := .Photos}}
+                        <li>
+                            {{if lt $index $.NumImagesToLoadAtStart}}
+                            <img src="{{$photo.GetUrlForWidth 800}}">
+                            {{else}}
+                            <img class="lazy" src="/static/placeholder.png" data-echo="{{$photo.GetUrlForWidth 800}}">
+                            {{end}}
+                        </li>
                         {{end}}
-                    </li>
-                    {{end}}
-                </ul>
+                    </ul>
+                </div>
             </div>
-        </div>
 
-        <div class="row">
-            <div class="col-12">
-                <p class="right built-with">Built using the <a href="https://github.com/agile-leaf/50mm">50mm gallery software</a> by
+            <div class="right footer">
+                <p>Built using the <a href="https://github.com/agile-leaf/50mm">50mm gallery software</a> by
                     <a href="https://www.agileleaf.com">Agile Leaf</a>.</p>
             </div>
         </div>

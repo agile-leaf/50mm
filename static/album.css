@@ -1,46 +1,12 @@
-body {
-    margin: 0;
-    padding: 0;
-
-    background-color: #EEEEEE;
-
-    font-size: 16px;
-}
-
-h1.site-title {
-    margin-top: 0;
-    margin-bottom: 16px;
-}
-
-h2.album-title {
-    text-align: center;
-    margin: 0 0 8px 0;
-}
-
-ul.images {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-ul.images li {
-    margin: 0;
-    padding: 0 0 20px 0;
-
-    text-align: center;
-}
-
-ul.images li:last-child {
-    padding: 0;
-}
-
-ul.images li img {
+div.album-title {
     width: 100%;
-    max-width: 800px;
+    text-align: center;
 }
 
-p.built-with {
-    font-size: 14px;
-    margin: 0;
-    padding: 0;
+div.photos ul.images li {
+    width: 100%;
+}
+
+div.photos ul.images li {
+    padding-bottom: 10px;
 }

@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <title>{{.MetaTitle}}</title>
 
-    <link href="https://fonts.googleapis.com/css?family=Merriweather" rel="stylesheet">
+    <link rel="stylesheet" href="/static/base.css">
     <link rel="stylesheet" href="/static/index.css">
 
-    <meta property="og:url" content="{{.SiteUrl}}" />
+    <meta name="viewport" content="width=device-width">
+    <meta property="og:url" content="{{.CanonicalUrl}}" />
     <meta property="og:title" content="{{.MetaTitle}}" />
     {{if .Albums}}
     {{with $firstAlbum := index .Albums 0}}
@@ -17,33 +18,42 @@
 
 </head>
 <body>
-    <div class="header">
-        <h1>{{.SiteTitle}}</h1>
-    </div>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <a href="{{.SiteUrl}}">{{.SiteTitle}}</a>
+            </h1>
+        </div>
 
-    {{range .Albums}}
-    <div class="album">
-        <div class="album-header-wrapper">
-            <div class="album-header">
-                <h2>{{.AlbumTitle}}</h2>
+        <div class="row">
+            {{range .Albums}}
+            <div class="album">
+                <div class="album-header-wrapper">
+                    <div class="album-title">
+                        <h2>{{.AlbumTitle}}</h2>
+                    </div>
+                    <div class="lg-only">
+                        <a href="{{.GetCanonicalUrl}}">View All</a>
+                    </div>
+                </div>
+                <div class="photos">
+                    <div class="cover">
+                        <img src="{{.GetCoverPhotoForTemplate.GetUrlForWidth 800}}" />
+                    </div>
+                    <div class="thumbs">
+                        <ul>
+                            {{range .GetThumbnailPhotosForTemplate}}
+                            <li><img src="{{.GetUrlForWidth 150}}&max-h=100&fit=crop&crop=faces"></li>
+                            {{end}}
+                        </ul>
+                    </div>
+                </div>
+                <div class="view-all-bottom">
+                    <a href="{{.GetCanonicalUrl}}">View All</a>
+                </div>
             </div>
-            <div class="view-all-lg">
-                <a href="{{.GetCanonicalUrl}}">View All</a>
-            </div>
-        </div>
-        <div class="photos">
-            <div class="cover">
-                <img src="{{.GetCoverPhotoForTemplate.GetUrlForWidth 800}}" />
-            </div>
-            <div class="thumbs">
-                <ul>
-                {{range .GetThumbnailPhotosForTemplate}}
-                    <li><img src="{{.GetUrlForWidth 150}}"></li>
-                {{end}}
-                </ul>
-            </div>
+            {{end}}
         </div>
     </div>
-    {{end}}
 </body>
 </html>

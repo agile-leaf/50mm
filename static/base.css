@@ -1,0 +1,95 @@
+@import url('https://fonts.googleapis.com/css?family=Merriweather');
+
+* {
+    font-family: 'Merriweather', serif;
+    box-sizing: border-box;
+
+    padding: 0;
+    margin: 0;
+}
+
+body {
+    font-size: 16px;
+    background-color: #EEEEEE;
+    color: #333447;
+}
+
+img {
+    width: 100%;
+}
+
+ul {
+    list-style: none;
+}
+
+h1 {
+    font-size: 2.5em;
+}
+
+h2 {
+    font-size: 1.5em;
+}
+
+div.lg-only {
+    display: none;
+}
+
+div.right {
+    text-align: right;
+}
+
+div.container {
+    width: 90%;
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+div.container div.header {
+    width: 100%;
+    text-align: center;
+
+    margin-bottom: 30px;
+}
+
+div.container div.header a {
+    color: #333447;
+    text-decoration: none;
+}
+
+div.container div.row {
+    width: 90%;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+div.footer {
+    font-size: .75em;
+    margin-bottom: 10px;
+}
+
+div.album {
+    width: 100%;
+}
+
+div.album div.album-header-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+
+    margin-bottom: 5px;
+}
+
+@media (min-width: 900px) {
+    div.lg-only {
+        display: block;
+    }
+
+    div.container div.header {
+        text-align: left;
+        margin-bottom: 60px;
+    }
+
+    div.album div.album-header-wrapper {
+        margin-bottom: 10px;
+    }
+}

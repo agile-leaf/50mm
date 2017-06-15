@@ -19,15 +19,17 @@ type AuthCredentialsProvider interface {
 }
 
 type BasePageContext struct {
-	SiteUrl string
+	SiteUrl      string
+	CanonicalUrl string
 
 	MetaTitle string
 	SiteTitle string
 }
 
-type AlbumsIndexPageContext struct {
+type IndexPageContext struct {
 	*BasePageContext
-	a *Album
+
+	Albums []*Album
 }
 
 type AlbumPageContext struct {
@@ -62,6 +64,7 @@ func handleAlbumPage(album *Album, w http.ResponseWriter, r *http.Request) {
 	} else {
 		ctx := &AlbumPageContext{
 			&BasePageContext{
+				album.site.GetCanonicalUrl().String(),
 				album.GetCanonicalUrl().String(),
 				album.MetaTitle,
 				album.site.SiteTitle,
@@ -83,17 +86,14 @@ func handleAlbumPage(album *Album, w http.ResponseWriter, r *http.Request) {
 }
 
 func handleAlbumsIndex(site *Site, w http.ResponseWriter, r *http.Request) {
-	type AlbumsIndexContext struct {
-		MetaTitle string
-		SiteTitle string
-		SiteUrl   string
-		Albums    []*Album
-	}
+	ctx := &IndexPageContext{
+		&BasePageContext{
+			site.GetCanonicalUrl().String(),
+			site.GetCanonicalUrl().String(),
+			site.MetaTitle,
+			site.SiteTitle,
+		},
 
-	ctx := &AlbumsIndexContext{
-		site.MetaTitle,
-		site.SiteTitle,
-		site.GetCanonicalUrl().String(),
 		site.Albums,
 	}
 
