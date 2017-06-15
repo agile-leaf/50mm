@@ -39,6 +39,10 @@ div.album img {
     width: 100%;
 }
 
+div.album div.photos div.cover {
+    margin-bottom: 10px;
+}
+
 div.album div.thumbs {
     display: none;
 }
