@@ -71,7 +71,7 @@ div.album {
     width: 100%;
 }
 
-div.album div.album-header-wrapper {
+div.album div.album-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
@@ -89,7 +89,7 @@ div.album div.album-header-wrapper {
         margin-bottom: 60px;
     }
 
-    div.album div.album-header-wrapper {
+    div.album div.album-header {
         margin-bottom: 10px;
     }
 }
