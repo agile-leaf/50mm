@@ -9,12 +9,6 @@ import (
 	"time"
 )
 
-/*
-Used when we can't get the photo required, and have to return something, forexample in methods used by templates
-*/
-type ErrorPhoto struct {
-}
-
 type ImgixPhoto struct {
 	Key     string
 	BaseUrl *url.URL
@@ -27,10 +21,11 @@ type S3Photo struct {
 }
 
 type Renderable interface {
-	GetUrlForWidth(int) string
+	GetPhotoForWidth(int) string
+	GetThumbnailForWidthAndHeight(int, int) string
 }
 
-func (p *ImgixPhoto) GetUrlForWidth(w int) string {
+func (p *ImgixPhoto) GetPhotoForWidth(w int) string {
 	keyPathUrl, err := url.Parse(p.Key)
 	if err != nil {
 		return ""
@@ -44,7 +39,25 @@ func (p *ImgixPhoto) GetUrlForWidth(w int) string {
 	return fullUrl.String()
 }
 
-func (p *S3Photo) GetUrlForWidth(w int) string {
+func (p *ImgixPhoto) GetThumbnailForWidthAndHeight(w, h int) string {
+	keyPathUrl, err := url.Parse(p.Key)
+	if err != nil {
+		return ""
+	}
+
+	fullUrl := p.BaseUrl.ResolveReference(keyPathUrl)
+	queryValues := fullUrl.Query()
+	queryValues.Add("w", fmt.Sprint(w))
+	queryValues.Add("max-h", fmt.Sprint(h))
+	queryValues.Add("fit", "crop")
+	queryValues.Add("crop", "faces")
+
+	fullUrl.RawQuery = queryValues.Encode()
+
+	return fullUrl.String()
+}
+
+func (p *S3Photo) GetPhotoForWidth(w int) string {
 	req, _ := s3.New(p.awsSession).GetObjectRequest(&s3.GetObjectInput{
 		Bucket: aws.String(p.BucketName),
 		Key:    aws.String(p.Key),
@@ -59,6 +72,20 @@ func (p *S3Photo) GetUrlForWidth(w int) string {
 	return signedUrl
 }
 
-func (p *ErrorPhoto) GetUrlForWidth(w int) string {
+func (p *S3Photo) GetThumbnailForWidthAndHeight(w, h int) string {
+	return p.GetPhotoForWidth(w)
+}
+
+/*
+Used when we can't get the photo required, and have to return something, for example in methods used by templates
+*/
+type ErrorPhoto struct {
+}
+
+func (p *ErrorPhoto) GetPhotoForWidth(w int) string {
+	return ""
+}
+
+func (p *ErrorPhoto) GetThumbnailForWidthAndHeight(w, h int) string {
 	return ""
 }

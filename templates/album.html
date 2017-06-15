@@ -10,7 +10,7 @@
     <meta name="viewport" content="width=device-width">
     <meta property="og:url" content="{{.CanonicalUrl}}" />
     <meta property="og:title" content="{{.MetaTitle}}" />
-    <meta property="og:image" content="{{.OgPhoto.GetUrlForWidth 800}}" />
+    <meta property="og:image" content="{{.OgPhoto.GetPhotoForWidth 800}}" />
 </head>
 <body>
     <div class="container">
@@ -31,9 +31,9 @@
                         {{range $index, $photo := .Photos}}
                         <li>
                             {{if lt $index $.NumImagesToLoadAtStart}}
-                            <img src="{{$photo.GetUrlForWidth 800}}">
+                            <img src="{{$photo.GetPhotoForWidth 800}}">
                             {{else}}
-                            <img class="lazy" src="/static/placeholder.png" data-echo="{{$photo.GetUrlForWidth 800}}">
+                            <img class="lazy" src="/static/placeholder.png" data-echo="{{$photo.GetPhotoForWidth 800}}">
                             {{end}}
                         </li>
                         {{end}}

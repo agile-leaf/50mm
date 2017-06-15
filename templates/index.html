@@ -12,7 +12,7 @@
     <meta property="og:title" content="{{.MetaTitle}}" />
     {{if .Albums}}
     {{with $firstAlbum := index .Albums 0}}
-    <meta property="og:image" content="{{$firstAlbum.GetCoverPhotoForTemplate.GetUrlForWidth 800}}" />
+    <meta property="og:image" content="{{$firstAlbum.GetCoverPhotoForTemplate.GetPhotoForWidth 800}}" />
     {{end}}
     {{end}}
 
@@ -38,12 +38,12 @@
                 </div>
                 <div class="photos">
                     <div class="cover">
-                        <img src="{{.GetCoverPhotoForTemplate.GetUrlForWidth 800}}" />
+                        <img src="{{.GetCoverPhotoForTemplate.GetPhotoForWidth 800}}" />
                     </div>
                     <div class="thumbs">
                         <ul>
                             {{range .GetThumbnailPhotosForTemplate}}
-                            <li><img src="{{.GetUrlForWidth 150}}&max-h=100&fit=crop&crop=faces"></li>
+                            <li><img src="{{.GetThumbnailForWidthAndHeight 150 100}}"></li>
                             {{end}}
                         </ul>
                     </div>

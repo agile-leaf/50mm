@@ -79,11 +79,13 @@ div.album div.album-header {
     margin-bottom: 5px;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 600px) {
     div.lg-only {
         display: block;
     }
+}
 
+@media (min-width: 900px) {
     div.container div.header {
         text-align: left;
         margin-bottom: 60px;
