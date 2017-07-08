@@ -144,6 +144,18 @@ func (s *Site) GetCanonicalUrl() *url.URL {
 	}
 }
 
+func (s *Site) GetAlbumsForIndex() []*Album {
+	indexAlbums := make([]*Album, 0)
+
+	for _, a := range s.Albums {
+		if a.InIndex {
+			indexAlbums = append(indexAlbums, a)
+		}
+	}
+
+	return indexAlbums
+}
+
 func (s *Site) GetS3Service() (*s3.S3, error) {
 	return s3.New(s.awsSession), nil
 }

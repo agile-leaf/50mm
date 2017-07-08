@@ -94,7 +94,7 @@ func handleAlbumsIndex(site *Site, w http.ResponseWriter, r *http.Request) {
 			site.SiteTitle,
 		},
 
-		site.Albums,
+		site.GetAlbumsForIndex(),
 	}
 
 	executeTemplateHelper(w, "index.html", ctx)
