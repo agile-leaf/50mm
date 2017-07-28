@@ -16,7 +16,7 @@ You'll need a working installation of [Go](https://golang.org/) to build 50mm. A
 ### Deploying the web application
 You can get and build the 50mm software by running:
 
-go build github.com/agile-leaf/50mm
+go get github.com/agile-leaf/50mm
 
 This should produce a binary file named `50mm` inside the `bin` folder in your Go workspace. This is the server component of the application. To keep things organised, let's copy the binary file to a new folder, which I refer to in the rest of this documentation as the `deploy` folder.
 
