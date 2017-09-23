@@ -143,8 +143,10 @@ func (a *Album) GetThumbnailPhotosForTemplate() []Renderable {
 	} else {
 		if len(photos) > 6 {
 			return photos[1:6]
-		} else {
+		} else if len(photos) > 0 {
 			return photos[1:]
+		} else {
+			return nil
 		}
 	}
 }
