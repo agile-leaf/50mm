@@ -19,6 +19,7 @@ type Site struct {
 	AuthUser string
 	AuthPass string
 
+	S3Host       string
 	BucketRegion string
 	BucketName   string
 
@@ -84,10 +85,15 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		return nil, err
 	}
 
-	if sess, err := session.NewSession(&aws.Config{
+	sess_config := &aws.Config{
 		Region:      aws.String(s.BucketRegion),
 		Credentials: credentials.NewStaticCredentials(s.AWS_SECRET_KEY_ID, s.AWS_SECRET_KEY, ""),
-	}); err != nil {
+	}
+	if s.S3Host != "" {
+		sess_config.Endpoint = aws.String(s.S3Host)
+	}
+
+	if sess, err := session.NewSession(sess_config); err != nil {
 		return nil, err
 	} else {
 		s.awsSession = sess
