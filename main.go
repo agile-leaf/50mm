@@ -118,21 +118,18 @@ func siteHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if album, err := site.GetAlbumForPath(path); err != nil {
-			// If the path doesn't have a / at it's end, try to see if we can find an album after adding the /
-			if path[len(path)-1] != '/' {
-				if _, err := site.GetAlbumForPath(path + "/"); err == nil {
-					// If we did find it, redirect user to there
-					http.Redirect(w, r, path+"/", http.StatusMovedPermanently)
-					return
-				}
-			}
+		album, err := site.GetAlbumForPath(path)
+		if err != nil {
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte(err.Error()))
 			return
-		} else {
-			handleAlbumPage(album, w, r)
 		}
+		// Redirect to canonical album page (with trailing slash) if necessary
+		if path[len(path)-1] != '/' {
+			http.Redirect(w, r, path+"/", http.StatusMovedPermanently)
+			return
+		}
+		handleAlbumPage(album, w, r)
 	}
 }
 
