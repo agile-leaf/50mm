@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"net/url"
-	"time"
 )
 
 type ImgixPhoto struct {
@@ -21,8 +23,14 @@ type S3Photo struct {
 }
 
 type Renderable interface {
+	Slug() string
 	GetPhotoForWidth(int) string
 	GetThumbnailForWidthAndHeight(int, int) string
+}
+
+func (p *ImgixPhoto) Slug() string {
+	parts := strings.Split(p.Key, "/")
+	return parts[len(parts)-1]
 }
 
 func (p *ImgixPhoto) GetPhotoForWidth(w int) string {
@@ -57,6 +65,11 @@ func (p *ImgixPhoto) GetThumbnailForWidthAndHeight(w, h int) string {
 	return fullUrl.String()
 }
 
+func (p *S3Photo) Slug() string {
+	parts := strings.Split(p.Key, "/")
+	return parts[len(parts)-1]
+}
+
 func (p *S3Photo) GetPhotoForWidth(w int) string {
 	req, _ := s3.New(p.awsSession).GetObjectRequest(&s3.GetObjectInput{
 		Bucket: aws.String(p.BucketName),
@@ -80,6 +93,10 @@ func (p *S3Photo) GetThumbnailForWidthAndHeight(w, h int) string {
 Used when we can't get the photo required, and have to return something, for example in methods used by templates
 */
 type ErrorPhoto struct {
+}
+
+func (p *ErrorPhoto) Slug() string {
+	return ""
 }
 
 func (p *ErrorPhoto) GetPhotoForWidth(w int) string {
