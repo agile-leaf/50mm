@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -250,6 +251,24 @@ func (a *Album) GetAllImageKeys() ([]string, error) {
 	} else {
 		return result.keys, result.err
 	}
+}
+
+func (a *Album) ImageExists(slug string) bool {
+	svc, err := a.site.GetS3Service()
+	if err != nil {
+		return false
+	}
+
+	key := strings.Join([]string{a.BucketPrefix, slug}, "/")
+	_, err = svc.HeadObject(&s3.HeadObjectInput{
+		Bucket: aws.String(a.site.BucketName),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return false
+	}
+
+	return true
 }
 
 func (a *Album) NeedsUpdate() bool {

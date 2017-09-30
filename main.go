@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io"
 	"net/http"
+	"strings"
 )
 
 const DEBUG = true
@@ -32,6 +33,14 @@ type IndexPageContext struct {
 	Albums []*Album
 }
 
+type ImagePageContext struct {
+	*BasePageContext
+
+	Photo      Renderable
+	Slug       string
+	AlbumTitle string
+}
+
 type AlbumPageContext struct {
 	*BasePageContext
 
@@ -50,6 +59,26 @@ func executeTemplateHelper(w io.Writer, templateName string, ctx interface{}) {
 	} else {
 		templates.ExecuteTemplate(w, templateName, ctx)
 	}
+}
+
+func handleImagePage(slug string, album *Album, w http.ResponseWriter, r *http.Request) {
+	if album.HasAuth() && !checkAndRequireAuth(w, r, album) {
+		return
+	}
+	imgUrl := album.site.GetPhotoForKey(album.BucketPrefix + slug)
+
+	ctx := &ImagePageContext{
+		&BasePageContext{
+			album.site.GetCanonicalUrl().String(),
+			album.GetCanonicalUrl().String(),
+			album.MetaTitle,
+			album.site.SiteTitle,
+		},
+		imgUrl,
+		slug,
+		album.AlbumTitle,
+	}
+	executeTemplateHelper(w, "photo.html", ctx)
 }
 
 func handleAlbumPage(album *Album, w http.ResponseWriter, r *http.Request) {
@@ -120,8 +149,25 @@ func siteHandler(w http.ResponseWriter, r *http.Request) {
 
 		album, err := site.GetAlbumForPath(path)
 		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(err.Error()))
+			// path isn't an album; see if it's an album + image
+			i := strings.LastIndex(path, "/") + 1
+			albumPath := path[:i]
+			slug := path[i:]
+
+			album, err = site.GetAlbumForPath(albumPath)
+			if err != nil {
+				w.WriteHeader(http.StatusNotFound)
+				w.Write([]byte(err.Error()))
+				return
+			}
+
+			if album.ImageExists(slug) {
+				handleImagePage(slug, album, w, r)
+				return
+			}
+
+			// Couldn't find the image in this album...just redirect to album
+			http.Redirect(w, r, albumPath, http.StatusMovedPermanently)
 			return
 		}
 		// Redirect to canonical album page (with trailing slash) if necessary

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{.MetaTitle}} - {{.Slug}}</title>
+
+    <link rel="stylesheet" href="/static/base.css">
+    <link rel="stylesheet" href="/static/album.css">
+
+    <meta name="viewport" content="width=device-width">
+    <meta property="og:url" content="{{.CanonicalUrl}}{{.Slug}}" />
+    <meta property="og:title" content="{{.MetaTitle}} - {{.Slug}}" />
+    <meta property="og:image" content="{{.Photo.GetPhotoForWidth 800}}" />
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <a href="{{.SiteUrl}}">{{.SiteTitle}}</a>
+                - 
+                <a href="{{.CanonicalUrl}}">{{.AlbumTitle}}</a>
+            </h1>
+        </div>
+        <div class="photo">
+            <div class="photo-header">
+                <div class="photo-title">
+                    <h2>{{.Slug}}</h2>
+                </div>
+            </div>
+            <img src="{{.Photo.GetPhotoForWidth 800}}">
+        </div>
+        <div class="right footer">
+            <p>Built using the <a href="https://github.com/agile-leaf/50mm">50mm gallery software</a> by
+                <a href="https://www.agileleaf.com">Agile Leaf</a>.</p>
+        </div>
+    </div>
+</body>
+</html>

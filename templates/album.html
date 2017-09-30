@@ -30,11 +30,13 @@
                     <ul class="images">
                         {{range $index, $photo := .Photos}}
                         <li>
-                            {{if lt $index $.NumImagesToLoadAtStart}}
-                            <img src="{{$photo.GetPhotoForWidth 800}}">
-                            {{else}}
-                            <img class="lazy" src="/static/placeholder.png" data-echo="{{$photo.GetPhotoForWidth 800}}">
-                            {{end}}
+                            <a href="{{$.CanonicalUrl}}{{$photo.Slug}}">
+                                {{if lt $index $.NumImagesToLoadAtStart}}
+                                <img src="{{$photo.GetPhotoForWidth 800}}">
+                                {{else}}
+                                <img class="lazy" src="/static/placeholder.png" data-echo="{{$photo.GetPhotoForWidth 800}}">
+                                {{end}}
+                            </a>
                         </li>
                         {{end}}
                     </ul>
