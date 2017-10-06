@@ -71,7 +71,7 @@ The `[DEFAULT]` section holds configurations for the entire site. Any other sect
 #### DEFAULT configuration options
 - `Domain`: This is the domain you want to configure your site on. 50mm will serve this site only if the request domain matches this.
 - `CanonicalSecure`: The 50mm server doesn't handle SSL connections. To get around this, 50mm is usually deployed behind a proxy server, like nginx. Right now 50mm doesn't look at any headers to tell if the original request was on a secure URL or not. If the `CanonicalSecure` configuration option is set to 1, 50mm assumes all requests are coming from a secure URL, and creates `https` URLs in the HTML it generates.
-- `S3Host`: The endpoint for your S3-compatible object store.
+- `S3Host`: The endpoint for your S3-compatible object store. You can safely ignore this if you are using Amazon S3.
 - `BucketRegion`: The AWS S3 region that hosts your photos bucket. If your object store doesn't have explicit regions try using "generic"
 - `BucketName`: Name of your S3 bucket.
 - `UseImgix`: If set to 1, the image URLs generated for your albums will use the Imgix image transformation service. This results in smaller image sizes and a faster web site, but Imgix is a paid service. If you turn this off (by setting the option to 0), the image URLs on your site will be AWS S3 URLs of the files you upload.
