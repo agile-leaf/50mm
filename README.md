@@ -120,7 +120,7 @@ If you use Nginx as your reverse proxy in-front of 50mm, you can use a configura
 
 You can also have SSL setup on Nginx if needed. Just remember to turn on the `CanonicalSecure` setting in your site config.
 
-### Setup the 50mm server
+### Setup the 50mm server (binary)
 You can use whichever solution you want to keep the 50mm server running in the background. I personally use `supervisord`, but you can use `init`, `upstart`, `systemd`, or any other solution you want; including running it inside a `tmux` session if you feel brave!
 
 Just remember to setup the `FIFTYMM_CONFIG_DIR` and `FIFTYMM_PORT` environment variables.
@@ -133,6 +133,9 @@ Here's the `supervisord` config I use:
 	environment=FIFTYMM_CONFIG_DIR="/home/asadjb/webapps/50mm/config",FIFTYMM_PORT="12536"
 	stdout_logfile=/home/asadjb/logs/user/50mm_stdout.log
 	stderr_logfile=/home/asadjb/logs/user/50mm_stderr.log
+
+### Setup the 50mm server (docker)
+You may also choose to run 50mm in a docker environment, for the moment you'll have to build your own image with `docker build -t 50mm:latest .`, you  may then run it with `docker run -p <reachable_port>:80 -v /path/to/config/directory:/deploy/config 50mm:latest`. Make sure your configuration reflects the domain as it would be seen in your browser.
 
 ## Upload photos and bask in the glory!
 Once the web app is up and running, you can upload photos to your S3 bucket (inside the folders/prefixes) you have configured for each album.
