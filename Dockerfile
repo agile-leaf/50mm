@@ -9,12 +9,10 @@ ADD . /go/src/github.com/agile-leaf/50mm
 WORKDIR /go/src/github.com/agile-leaf/50mm
 RUN go get -v
 
-
 # get the deploy folder structure in working condition
 RUN mkdir /deploy
 WORKDIR /deploy
 
-# add in the files we need in the workdir
 RUN mv /go/bin/50mm .
 ADD static ./static
 ADD templates ./templates
