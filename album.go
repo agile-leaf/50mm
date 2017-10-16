@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -50,6 +51,7 @@ func NewAlbumFromConfig(section *ini.Section, s *Site) (*Album, error) {
 		return nil, err
 	}
 
+	album.Canonicalize()
 	return album, nil
 }
 
@@ -69,6 +71,7 @@ func NewAlbum(s *Site, path string, bucketPrefix string, authUser string, authPa
 		return nil, err
 	}
 
+	album.Canonicalize()
 	return album, nil
 }
 
@@ -81,6 +84,12 @@ func (a *Album) IsValid() error {
 		return errors.New("An album that requires authentication can't be shown in the index. If you need authentication please add it to the site.")
 	}
 	return nil
+}
+
+func (a *Album) Canonicalize() {
+	if a.Path[len(a.Path)-1] != '/' {
+		a.Path = a.Path + "/"
+	}
 }
 
 func (a *Album) HasOwnAuth() bool {
@@ -242,6 +251,24 @@ func (a *Album) GetAllImageKeys() ([]string, error) {
 	} else {
 		return result.keys, result.err
 	}
+}
+
+func (a *Album) ImageExists(slug string) bool {
+	svc, err := a.site.GetS3Service()
+	if err != nil {
+		return false
+	}
+
+	key := strings.Join([]string{a.BucketPrefix, slug}, "/")
+	_, err = svc.HeadObject(&s3.HeadObjectInput{
+		Bucket: aws.String(a.site.BucketName),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return false
+	}
+
+	return true
 }
 
 func (a *Album) NeedsUpdate() bool {

@@ -195,6 +195,9 @@ func (s *Site) GetImgixPhoto(key string) *ImgixPhoto {
 }
 
 func (s *Site) GetAlbumForPath(path string) (*Album, error) {
+	if path[len(path)-1] != '/' {
+		path = path + "/"
+	}
 	for _, album := range s.Albums {
 		if album.Path == path {
 			return album, nil
