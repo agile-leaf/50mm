@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-ini/ini"
+	"log"
 )
 
 type Site struct {
@@ -23,7 +24,8 @@ type Site struct {
 	BucketRegion string
 	BucketName   string
 
-	UseImgix bool
+	ResizingService string
+	ResizingServiceSecret string
 	BaseUrl  string
 
 	AWS_SECRET_KEY_ID string `ini:"AWSKeyId"`
@@ -167,10 +169,11 @@ func (s *Site) GetS3Service() (*s3.S3, error) {
 }
 
 func (s *Site) GetPhotoForKey(key string) Renderable {
-	if s.UseImgix {
-		return s.GetImgixPhoto(key)
-	} else {
+	if s.ResizingService == "" {
+		//TODO: maybe warn that you're going raw
 		return s.GetS3Photo(key)
+	} else {
+		return s.GetScaledPhoto(s.ResizingService, s.ResizingServiceSecret, key)
 	}
 }
 
@@ -182,14 +185,26 @@ func (s *Site) GetS3Photo(key string) *S3Photo {
 	}
 }
 
-func (s *Site) GetImgixPhoto(key string) *ImgixPhoto {
+func (s *Site) GetScaledPhoto(resizingService string, resizingServiceSecret string, key string) Renderable {
 	if baseUrl, err := url.Parse(s.BaseUrl); err != nil {
 		fmt.Printf("Error trying to parse site base URL. Error: %s\n", err.Error())
 		return nil
 	} else {
-		return &ImgixPhoto{
-			key,
-			baseUrl,
+		if resizingService == "imgix" {
+			return &ImgixRescaledPhoto{
+				key,
+				baseUrl,
+			}
+		} else if resizingService == "thumbor" {
+			return &ThumborRescaledPhoto{
+				resizingServiceSecret,
+				key,
+				baseUrl,
+			}
+		} else {
+			//TODO: get better handling on this, maybe validate the config as it's being read?
+			log.Fatal("Unimplemented resizing service")
+			return nil //keep the compiler happy
 		}
 	}
 }

@@ -9,9 +9,17 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+
+	"github.com/globocom/gothumbor"
 )
 
-type ImgixPhoto struct {
+type ImgixRescaledPhoto struct {
+	Key     string
+	BaseUrl *url.URL
+}
+
+type ThumborRescaledPhoto struct {
+	Secret  string
 	Key     string
 	BaseUrl *url.URL
 }
@@ -28,12 +36,12 @@ type Renderable interface {
 	GetThumbnailForWidthAndHeight(int, int) string
 }
 
-func (p *ImgixPhoto) Slug() string {
+func (p *ImgixRescaledPhoto) Slug() string {
 	parts := strings.Split(p.Key, "/")
 	return parts[len(parts)-1]
 }
 
-func (p *ImgixPhoto) GetPhotoForWidth(w int) string {
+func (p *ImgixRescaledPhoto) GetPhotoForWidth(w int) string {
 	keyPathUrl, err := url.Parse(p.Key)
 	if err != nil {
 		return ""
@@ -47,7 +55,7 @@ func (p *ImgixPhoto) GetPhotoForWidth(w int) string {
 	return fullUrl.String()
 }
 
-func (p *ImgixPhoto) GetThumbnailForWidthAndHeight(w, h int) string {
+func (p *ImgixRescaledPhoto) GetThumbnailForWidthAndHeight(w, h int) string {
 	keyPathUrl, err := url.Parse(p.Key)
 	if err != nil {
 		return ""
@@ -63,6 +71,38 @@ func (p *ImgixPhoto) GetThumbnailForWidthAndHeight(w, h int) string {
 	fullUrl.RawQuery = queryValues.Encode()
 
 	return fullUrl.String()
+}
+
+func (p *ThumborRescaledPhoto) Slug() string {
+	//TODO: golang noob: find out how to make this common with ImgixRescaledPhoto
+	parts := strings.Split(p.Key, "/")
+	return parts[len(parts)-1]
+}
+
+func (p *ThumborRescaledPhoto) GetPhotoForWidth(w int) string {
+	thumborOptions := gothumbor.ThumborOptions{Width: w, Smart: true}
+	thumborPath, err := gothumbor.GetCryptedThumborPath(p.Secret, p.Key, thumborOptions)
+	if err != nil {
+		fmt.Print(err)
+	}
+
+	parts := []string{p.BaseUrl.String(), thumborPath}
+	thumborUrl := strings.Join(parts, "/")
+
+	return thumborUrl
+}
+
+func (p *ThumborRescaledPhoto) GetThumbnailForWidthAndHeight(w, h int) string {
+	thumborOptions := gothumbor.ThumborOptions{Width: w, Height: h, Smart: true}
+	thumborPath, err := gothumbor.GetCryptedThumborPath(p.Secret, p.Key, thumborOptions)
+	if err != nil {
+		fmt.Print(err)
+	}
+
+	parts := []string{p.BaseUrl.String(), thumborPath}
+	thumborUrl := strings.Join(parts, "/")
+
+	return thumborUrl
 }
 
 func (p *S3Photo) Slug() string {
