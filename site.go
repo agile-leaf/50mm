@@ -24,9 +24,9 @@ type Site struct {
 	BucketRegion string
 	BucketName   string
 
-	ResizingService string
+	ResizingService       string
 	ResizingServiceSecret string
-	BaseUrl  string
+	BaseUrl               string
 
 	AWS_SECRET_KEY_ID string `ini:"AWSKeyId"`
 	AWS_SECRET_KEY    string `ini:"AWSKey"`

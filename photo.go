@@ -24,7 +24,7 @@ type ImgixRescaledPhoto struct {
 
 type ThumborRescaledPhoto struct {
 	*RescaledPhoto
-	Secret  string
+	Secret string
 }
 
 type S3Photo struct {
