@@ -192,14 +192,18 @@ func (s *Site) GetScaledPhoto(resizingService string, resizingServiceSecret stri
 	} else {
 		if resizingService == "imgix" {
 			return &ImgixRescaledPhoto{
-				key,
-				baseUrl,
+				RescaledPhoto: &RescaledPhoto{
+					key,
+					baseUrl,
+				},
 			}
 		} else if resizingService == "thumbor" {
 			return &ThumborRescaledPhoto{
-				resizingServiceSecret,
-				key,
-				baseUrl,
+				RescaledPhoto: &RescaledPhoto{
+					key,
+					baseUrl,
+				},
+				Secret: resizingServiceSecret,
 			}
 		} else {
 			//TODO: get better handling on this, maybe validate the config as it's being read?

@@ -13,15 +13,18 @@ import (
 	"github.com/globocom/gothumbor"
 )
 
-type ImgixRescaledPhoto struct {
+type RescaledPhoto struct {
 	Key     string
 	BaseUrl *url.URL
 }
 
+type ImgixRescaledPhoto struct {
+	*RescaledPhoto
+}
+
 type ThumborRescaledPhoto struct {
+	*RescaledPhoto
 	Secret  string
-	Key     string
-	BaseUrl *url.URL
 }
 
 type S3Photo struct {
@@ -36,7 +39,7 @@ type Renderable interface {
 	GetThumbnailForWidthAndHeight(int, int) string
 }
 
-func (p *ImgixRescaledPhoto) Slug() string {
+func (p *RescaledPhoto) Slug() string {
 	parts := strings.Split(p.Key, "/")
 	return parts[len(parts)-1]
 }
@@ -71,12 +74,6 @@ func (p *ImgixRescaledPhoto) GetThumbnailForWidthAndHeight(w, h int) string {
 	fullUrl.RawQuery = queryValues.Encode()
 
 	return fullUrl.String()
-}
-
-func (p *ThumborRescaledPhoto) Slug() string {
-	//TODO: golang noob: find out how to make this common with ImgixRescaledPhoto
-	parts := strings.Split(p.Key, "/")
-	return parts[len(parts)-1]
 }
 
 func (p *ThumborRescaledPhoto) GetPhotoForWidth(w int) string {
