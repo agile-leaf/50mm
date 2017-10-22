@@ -10,7 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-ini/ini"
-	"log"
 )
 
 type Site struct {
@@ -125,6 +124,14 @@ func (s *Site) IsValid() error {
 		}
 	}
 
+	if s.ResizingService != "imgix" && s.ResizingService != "thumbor" && s.ResizingService != "" {
+		return errors.New("Unrecognized/Unimplemented resizing service")
+	}
+
+	if s.ResizingService == "thumbor" && s.ResizingServiceSecret == "" {
+		return errors.New("Thumbor resizing service requires use of a shared secret for URL signing")
+	}
+
 	return nil
 }
 
@@ -206,9 +213,9 @@ func (s *Site) GetScaledPhoto(resizingService string, resizingServiceSecret stri
 				Secret: resizingServiceSecret,
 			}
 		} else {
-			//TODO: get better handling on this, maybe validate the config as it's being read?
-			log.Fatal("Unimplemented resizing service")
-			return nil //keep the compiler happy
+			// it should never come to this due to configuration validation,
+			// but best to keep the compiler happy.
+			return nil
 		}
 	}
 }
