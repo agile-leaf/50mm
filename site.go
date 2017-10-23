@@ -5,11 +5,15 @@ import (
 	"fmt"
 	"net/url"
 
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-ini/ini"
+	"io/ioutil"
 )
 
 type Site struct {
@@ -27,8 +31,12 @@ type Site struct {
 	ResizingServiceSecret string
 	BaseUrl               string
 
-	AWS_SECRET_KEY_ID string `ini:"AWSKeyId"`
-	AWS_SECRET_KEY    string `ini:"AWSKey"`
+	AWS_SECRET_KEY_ID                  string          `ini:"AWSKeyId"`
+	AWS_SECRET_KEY                     string          `ini:"AWSKey"`
+	AWS_CLOUDFRONT_PRIVATE_KEY_PATH    string          `ini:"AWSCloudfrontKeyPath"`
+	AWS_CLOUDFRONT_PRIVATE_KEY_PAIR_ID string          `ini:"AWSCloudfrontKeyPairId"`
+	CloudfrontPrivateKey               *rsa.PrivateKey //this is loaded on config read
+	//from the path provided in AWS_PRIVATE_KEY_PATH
 
 	SiteTitle string
 	MetaTitle string
@@ -104,6 +112,35 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		return nil, err
 	}
 
+	// set up private key for thumbor+cloudfront, if applicable
+	if s.ResizingService == "thumbor+cloudfront" && s.AWS_CLOUDFRONT_PRIVATE_KEY_PATH != "" && s.AWS_CLOUDFRONT_PRIVATE_KEY_PAIR_ID != "" {
+		// borrowed from: https://github.com/ianmcmahon/encoding_ssh
+
+		// read in private key from file (private key is PEM encoded PKCS)
+		bytes, err := ioutil.ReadFile(s.AWS_CLOUDFRONT_PRIVATE_KEY_PATH)
+		if err != nil {
+			return nil, err
+		}
+
+		// decode PEM encoding to ANS.1 PKCS1 DER
+		block, _ := pem.Decode(bytes)
+		if block == nil {
+			return nil, errors.New("Private Key: No Block found in keyfile")
+		}
+		if block.Type != "RSA PRIVATE KEY" {
+			return nil, errors.New("Private Key: Unsupported key type, should be RSA Private key in pem file")
+		}
+
+		// parse DER format to a native type
+		key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+
+		if err != nil {
+			return nil, errors.New("Private Key: could not parse RSA key")
+		}
+
+		s.CloudfrontPrivateKey = key
+	}
+
 	return s, nil
 }
 
@@ -124,12 +161,39 @@ func (s *Site) IsValid() error {
 		}
 	}
 
-	if s.ResizingService != "imgix" && s.ResizingService != "thumbor" && s.ResizingService != "" {
-		return errors.New("Unrecognized/Unimplemented resizing service")
+	if s.ResizingService != "imgix" && s.ResizingService != "thumbor" && s.ResizingService != "thumbor+cloudfront" && s.ResizingService != "" {
+		return errors.New(fmt.Sprintf("Unrecognized/Unimplemented resizing service '%s',"+
+			" valid options are imgix, thumbor, thumbor+cloudfront", s.ResizingService))
 	}
 
 	if s.ResizingService == "thumbor" && s.ResizingServiceSecret == "" {
 		return errors.New("Thumbor resizing service requires use of a shared secret for URL signing")
+	}
+
+	if s.ResizingService == "thumbor+cloudfront" && (s.AWS_CLOUDFRONT_PRIVATE_KEY_PATH == "" || s.AWS_CLOUDFRONT_PRIVATE_KEY_PAIR_ID == "") {
+		return errors.New("thumbor+cloudfront resizing service requires you to provision a private key " +
+			"and provide the path to the private key(config AWSCloudfrontKeyPath)," +
+			" along with the associated key pair id (config AWSCloudfrontKeyPairId)")
+	} else if s.ResizingService == "thumbor+cloudfront" && s.AWS_CLOUDFRONT_PRIVATE_KEY_PATH != "" {
+		// borrowed from: https://github.com/ianmcmahon/encoding_ssh
+
+		// read in private key from file (private key is PEM encoded PKCS)
+		bytes, err := ioutil.ReadFile(s.AWS_CLOUDFRONT_PRIVATE_KEY_PATH)
+		if err != nil {
+			return err
+		}
+
+		// decode PEM encoding to ANS.1 PKCS1 DER
+		block, _ := pem.Decode(bytes)
+		if block == nil {
+			return errors.New("Private Key: No Block found in keyfile")
+		}
+		if block.Type != "RSA PRIVATE KEY" {
+			return errors.New("Private Key: Unsupported key type, should be RSA Private key in pem file")
+		}
+
+		// we'll skip parsing the whole damn thing, that'll be done on init.
+		// less dev surprises this way
 	}
 
 	return nil
@@ -180,7 +244,7 @@ func (s *Site) GetPhotoForKey(key string) Renderable {
 		//TODO: maybe warn that you're going raw
 		return s.GetS3Photo(key)
 	} else {
-		return s.GetScaledPhoto(s.ResizingService, s.ResizingServiceSecret, key)
+		return s.GetScaledPhoto(key)
 	}
 }
 
@@ -192,25 +256,36 @@ func (s *Site) GetS3Photo(key string) *S3Photo {
 	}
 }
 
-func (s *Site) GetScaledPhoto(resizingService string, resizingServiceSecret string, key string) Renderable {
+func (s *Site) GetScaledPhoto(key string) Renderable {
 	if baseUrl, err := url.Parse(s.BaseUrl); err != nil {
 		fmt.Printf("Error trying to parse site base URL. Error: %s\n", err.Error())
 		return nil
 	} else {
-		if resizingService == "imgix" {
+		if s.ResizingService == "imgix" {
 			return &ImgixRescaledPhoto{
 				RescaledPhoto: &RescaledPhoto{
 					key,
 					baseUrl,
 				},
 			}
-		} else if resizingService == "thumbor" {
-			return &ThumborRescaledPhoto{
+		} else if s.ResizingService == "thumbor" {
+			return &ThumborRaw{
+				ThumborCommon: &ThumborCommon{
+					&RescaledPhoto{
+						key,
+						baseUrl,
+					},
+				},
+				Secret: s.ResizingServiceSecret,
+			}
+		} else if s.ResizingService == "thumbor+cloudfront" {
+			return &ThumborCloudfront{
 				RescaledPhoto: &RescaledPhoto{
 					key,
 					baseUrl,
 				},
-				Secret: resizingServiceSecret,
+				AWSCloudfrontKeyPairId:  s.AWS_CLOUDFRONT_PRIVATE_KEY_PAIR_ID,
+				AWSCloudfrontPrivateKey: s.CloudfrontPrivateKey,
 			}
 		} else {
 			// it should never come to this due to configuration validation,

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rsa"
 	"fmt"
 	"net/url"
 	"strings"
@@ -8,9 +9,11 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/cloudfront/sign"
 	"github.com/aws/aws-sdk-go/service/s3"
 
 	"github.com/globocom/gothumbor"
+	"log"
 )
 
 type RescaledPhoto struct {
@@ -22,9 +25,24 @@ type ImgixRescaledPhoto struct {
 	*RescaledPhoto
 }
 
-type ThumborRescaledPhoto struct {
+type ThumborCommon struct {
 	*RescaledPhoto
+}
+
+// for use with thumbor as a basic setup, URL signing mandatory.
+// quick implementation available at: https://github.com/APSL/docker-thumbor
+// be warned - it's a resource hungry beast.
+type ThumborRaw struct {
+	*ThumborCommon
 	Secret string
+}
+
+// for use with thumbor backed by AWS lambda with *cloudfront* URL signing (on unsafe thumbor urls)
+// see: https://docs.aws.amazon.com/solutions/latest/serverless-image-handler/welcome.html
+type ThumborCloudfront struct {
+	*RescaledPhoto                          //it's distinct enough (doesn't have a need for thumbor url signing)
+	AWSCloudfrontKeyPairId  string          //required for URL signing
+	AWSCloudfrontPrivateKey *rsa.PrivateKey //required for URL signing
 }
 
 type S3Photo struct {
@@ -76,7 +94,7 @@ func (p *ImgixRescaledPhoto) GetThumbnailForWidthAndHeight(w, h int) string {
 	return fullUrl.String()
 }
 
-func (p *ThumborRescaledPhoto) GetPhotoForWidth(w int) string {
+func (p *ThumborRaw) GetPhotoForWidth(w int) string {
 	thumborOptions := gothumbor.ThumborOptions{Width: w, Smart: true}
 	thumborPath, err := gothumbor.GetCryptedThumborPath(p.Secret, p.Key, thumborOptions)
 	if err != nil {
@@ -89,7 +107,7 @@ func (p *ThumborRescaledPhoto) GetPhotoForWidth(w int) string {
 	return thumborUrl
 }
 
-func (p *ThumborRescaledPhoto) GetThumbnailForWidthAndHeight(w, h int) string {
+func (p *ThumborRaw) GetThumbnailForWidthAndHeight(w, h int) string {
 	thumborOptions := gothumbor.ThumborOptions{Width: w, Height: h, Smart: true}
 	thumborPath, err := gothumbor.GetCryptedThumborPath(p.Secret, p.Key, thumborOptions)
 	if err != nil {
@@ -100,6 +118,42 @@ func (p *ThumborRescaledPhoto) GetThumbnailForWidthAndHeight(w, h int) string {
 	thumborUrl := strings.Join(parts, "/")
 
 	return thumborUrl
+}
+
+func (p *ThumborCloudfront) SignCloudfrontURL(path string) string {
+
+	parts := []string{p.BaseUrl.String(), path}
+	fullURL := strings.Join(parts, "/")
+
+	// now sign for cloudfront
+	signer := sign.NewURLSigner(p.AWSCloudfrontKeyPairId, p.AWSCloudfrontPrivateKey)
+	//asdfasdf //todo signer only returns a signature, not a signed url or something strange. marshal it yourself.
+	signedURL, err := signer.Sign(fullURL, time.Now().Add(1*time.Hour))
+	if err != nil {
+		log.Fatalf("Failed to sign url, err: %s\n", err.Error())
+	}
+	return signedURL
+}
+
+func (p *ThumborCloudfront) GetPhotoForWidth(w int) string {
+	// get thumbor path without signing
+	thumborOptions := gothumbor.ThumborOptions{Width: w, Smart: true}
+	thumborPath, err := gothumbor.GetThumborPath(p.Key, thumborOptions)
+	if err != nil {
+		fmt.Print(err)
+	}
+
+	return p.SignCloudfrontURL(thumborPath)
+}
+
+func (p *ThumborCloudfront) GetThumbnailForWidthAndHeight(w, h int) string {
+	thumborOptions := gothumbor.ThumborOptions{Width: w, Smart: true}
+	thumborPath, err := gothumbor.GetThumborPath(p.Key, thumborOptions)
+	if err != nil {
+		fmt.Print(err)
+	}
+
+	return p.SignCloudfrontURL(thumborPath)
 }
 
 func (p *S3Photo) Slug() string {
