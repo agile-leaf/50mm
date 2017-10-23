@@ -130,7 +130,6 @@ func (p *ThumborCloudfront) SignCloudfrontURL(path string) string {
 
 	// now sign for cloudfront
 	signer := sign.NewURLSigner(p.AWSCloudfrontKeyPairId, p.AWSCloudfrontPrivateKey)
-	//asdfasdf //todo signer only returns a signature, not a signed url or something strange. marshal it yourself.
 	signedURL, err := signer.Sign(fullUrl.String(), time.Now().Add(1*time.Hour))
 	if err != nil {
 		log.Fatalf("Failed to sign url, err: %s\n", err.Error())
