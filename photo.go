@@ -150,7 +150,7 @@ func (p *ThumborCloudfront) GetPhotoForWidth(w int) string {
 }
 
 func (p *ThumborCloudfront) GetThumbnailForWidthAndHeight(w, h int) string {
-	thumborOptions := gothumbor.ThumborOptions{Width: w, Smart: true}
+	thumborOptions := gothumbor.ThumborOptions{Width: w, Height: h, Smart: true}
 	thumborPath, err := gothumbor.GetThumborPath(p.Key, thumborOptions)
 	if err != nil {
 		fmt.Print(err)
