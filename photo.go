@@ -101,10 +101,10 @@ func (p *ThumborRaw) GetPhotoForWidth(w int) string {
 		fmt.Print(err)
 	}
 
-	parts := []string{p.BaseUrl.String(), thumborPath}
-	thumborUrl := strings.Join(parts, "/")
+	parsedPath, err := url.Parse(thumborPath)
+	fullUrl := p.BaseUrl.ResolveReference(parsedPath)
 
-	return thumborUrl
+	return fullUrl.String()
 }
 
 func (p *ThumborRaw) GetThumbnailForWidthAndHeight(w, h int) string {
@@ -114,21 +114,24 @@ func (p *ThumborRaw) GetThumbnailForWidthAndHeight(w, h int) string {
 		fmt.Print(err)
 	}
 
-	parts := []string{p.BaseUrl.String(), thumborPath}
-	thumborUrl := strings.Join(parts, "/")
+	parsedPath, err := url.Parse(thumborPath)
+	fullUrl := p.BaseUrl.ResolveReference(parsedPath)
 
-	return thumborUrl
+	return fullUrl.String()
 }
 
 func (p *ThumborCloudfront) SignCloudfrontURL(path string) string {
 
-	parts := []string{p.BaseUrl.String(), path}
-	fullURL := strings.Join(parts, "/")
+	parsedPath, err := url.Parse(path)
+	if err != nil {
+		log.Fatalf("Failed to parse URL for signing, err: %s\n", err.Error())
+	}
+	fullUrl := p.BaseUrl.ResolveReference(parsedPath)
 
 	// now sign for cloudfront
 	signer := sign.NewURLSigner(p.AWSCloudfrontKeyPairId, p.AWSCloudfrontPrivateKey)
 	//asdfasdf //todo signer only returns a signature, not a signed url or something strange. marshal it yourself.
-	signedURL, err := signer.Sign(fullURL, time.Now().Add(1*time.Hour))
+	signedURL, err := signer.Sign(fullUrl.String(), time.Now().Add(1*time.Hour))
 	if err != nil {
 		log.Fatalf("Failed to sign url, err: %s\n", err.Error())
 	}
