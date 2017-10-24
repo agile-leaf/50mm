@@ -25,15 +25,11 @@ type ImgixRescaledPhoto struct {
 	*RescaledPhoto
 }
 
-type ThumborCommon struct {
-	*RescaledPhoto
-}
-
 // for use with thumbor as a basic setup, URL signing mandatory.
 // quick implementation available at: https://github.com/APSL/docker-thumbor
 // be warned - it's a resource hungry beast.
 type ThumborRaw struct {
-	*ThumborCommon
+	*RescaledPhoto
 	Secret string
 }
 

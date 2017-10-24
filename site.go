@@ -270,11 +270,9 @@ func (s *Site) GetScaledPhoto(key string) Renderable {
 			}
 		} else if s.ResizingService == "thumbor" {
 			return &ThumborRaw{
-				ThumborCommon: &ThumborCommon{
-					&RescaledPhoto{
-						key,
-						baseUrl,
-					},
+				RescaledPhoto: &RescaledPhoto{
+					key,
+					baseUrl,
 				},
 				Secret: s.ResizingServiceSecret,
 			}
