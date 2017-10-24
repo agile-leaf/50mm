@@ -241,7 +241,6 @@ func (s *Site) GetS3Service() (*s3.S3, error) {
 
 func (s *Site) GetPhotoForKey(key string) Renderable {
 	if s.ResizingService == "" {
-		//TODO: maybe warn that you're going raw
 		return s.GetS3Photo(key)
 	} else {
 		return s.GetScaledPhoto(key)
