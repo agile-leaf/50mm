@@ -27,6 +27,7 @@ type Site struct {
 	BucketRegion string
 	BucketName   string
 
+	UseImgix bool //deprecated
 	ResizingService       string
 	ResizingServiceSecret string
 	BaseUrl               string
@@ -140,6 +141,15 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		return nil, err
 	}
 
+	if s.UseImgix {
+		//we've deprecated UseImgix as a config, but don't want
+		//to force users with valid configs to have their configs
+		//suddenly useless upon upgrade. We implicitly do this
+		//for the user, but if they try to set UseImgix
+		//AND a ResizingService, validation fails in IsValid.
+		s.ResizingService = "imgix"
+	}
+
 	// set up private key for thumbor+cloudfront, missing paths, etc
 	// are brought to our attention during validation
 	if s.ResizingService == "thumbor+cloudfront" {
@@ -168,6 +178,10 @@ func (s *Site) IsValid() error {
 				return errors.New("Site can't have an index and an album at path '/'")
 			}
 		}
+	}
+
+	if s.UseImgix && s.ResizingService != "" {
+		return errors.New("ResizingService supercedes UseImgix, please use ResizingService = imgix instead.")
 	}
 
 	if s.ResizingService != "imgix" && s.ResizingService != "thumbor" && s.ResizingService != "thumbor+cloudfront" && s.ResizingService != "" {
