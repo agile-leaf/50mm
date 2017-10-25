@@ -13,7 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 
 	"github.com/globocom/gothumbor"
-	"log"
 )
 
 type RescaledPhoto struct {
@@ -61,6 +60,7 @@ func (p *RescaledPhoto) Slug() string {
 func (p *ImgixRescaledPhoto) GetPhotoForWidth(w int) string {
 	keyPathUrl, err := url.Parse(p.Key)
 	if err != nil {
+		fmt.Print(err)
 		return ""
 	}
 
@@ -75,6 +75,7 @@ func (p *ImgixRescaledPhoto) GetPhotoForWidth(w int) string {
 func (p *ImgixRescaledPhoto) GetThumbnailForWidthAndHeight(w, h int) string {
 	keyPathUrl, err := url.Parse(p.Key)
 	if err != nil {
+		fmt.Print(err)
 		return ""
 	}
 
@@ -95,6 +96,7 @@ func (p *ThumborRaw) GetPhotoForWidth(w int) string {
 	thumborPath, err := gothumbor.GetCryptedThumborPath(p.Secret, p.Key, thumborOptions)
 	if err != nil {
 		fmt.Print(err)
+		return ""
 	}
 
 	parsedPath, err := url.Parse(thumborPath)
@@ -108,6 +110,7 @@ func (p *ThumborRaw) GetThumbnailForWidthAndHeight(w, h int) string {
 	thumborPath, err := gothumbor.GetCryptedThumborPath(p.Secret, p.Key, thumborOptions)
 	if err != nil {
 		fmt.Print(err)
+		return ""
 	}
 
 	parsedPath, err := url.Parse(thumborPath)
@@ -120,7 +123,8 @@ func (p *ThumborCloudfront) SignCloudfrontURL(path string) string {
 
 	parsedPath, err := url.Parse(path)
 	if err != nil {
-		log.Fatalf("Failed to parse URL for signing, err: %s\n", err.Error())
+		fmt.Printf("Failed to parse URL for signing, err: %s\n", err.Error())
+		return ""
 	}
 	fullUrl := p.BaseUrl.ResolveReference(parsedPath)
 
@@ -128,7 +132,8 @@ func (p *ThumborCloudfront) SignCloudfrontURL(path string) string {
 	signer := sign.NewURLSigner(p.AWSCloudfrontKeyPairId, p.AWSCloudfrontPrivateKey)
 	signedURL, err := signer.Sign(fullUrl.String(), time.Now().Add(1*time.Hour))
 	if err != nil {
-		log.Fatalf("Failed to sign url, err: %s\n", err.Error())
+		fmt.Printf("Failed to sign url, err: %s\n", err.Error())
+		return ""
 	}
 	return signedURL
 }
@@ -139,6 +144,7 @@ func (p *ThumborCloudfront) GetPhotoForWidth(w int) string {
 	thumborPath, err := gothumbor.GetThumborPath(p.Key, thumborOptions)
 	if err != nil {
 		fmt.Print(err)
+		return ""
 	}
 
 	return p.SignCloudfrontURL(thumborPath)
@@ -149,6 +155,7 @@ func (p *ThumborCloudfront) GetThumbnailForWidthAndHeight(w, h int) string {
 	thumborPath, err := gothumbor.GetThumborPath(p.Key, thumborOptions)
 	if err != nil {
 		fmt.Print(err)
+		return ""
 	}
 
 	return p.SignCloudfrontURL(thumborPath)
