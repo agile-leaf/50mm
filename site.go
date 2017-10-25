@@ -47,6 +47,34 @@ type Site struct {
 	awsSession *session.Session
 }
 
+func GetPrivateKeyFromFile(path string) (*rsa.PrivateKey, error) {
+	// borrowed from: https://github.com/ianmcmahon/encoding_ssh
+
+	// read in private key from file (private key is PEM encoded PKCS)
+	bytes, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// decode PEM encoding to ANS.1 PKCS1 DER
+	block, _ := pem.Decode(bytes)
+	if block == nil {
+		return nil, errors.New("Private Key: No Block found in keyfile")
+	}
+	if block.Type != "RSA PRIVATE KEY" {
+		return nil, errors.New("Private Key: Unsupported key type, should be RSA Private key in pem file")
+	}
+
+	// parse DER format to a native type
+	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+
+	if err != nil {
+		return nil, errors.New("Private Key: could not parse RSA key")
+	}
+
+	return key, nil
+}
+
 func LoadSiteFromFile(path string) (*Site, error) {
 	cfg, err := ini.Load(path)
 	if err != nil {
@@ -112,33 +140,14 @@ func LoadSiteFromFile(path string) (*Site, error) {
 		return nil, err
 	}
 
-	// set up private key for thumbor+cloudfront, if applicable
-	if s.ResizingService == "thumbor+cloudfront" && s.AWS_CLOUDFRONT_PRIVATE_KEY_PATH != "" && s.AWS_CLOUDFRONT_PRIVATE_KEY_PAIR_ID != "" {
-		// borrowed from: https://github.com/ianmcmahon/encoding_ssh
+	// set up private key for thumbor+cloudfront, missing paths, etc
+	// are brought to our attention during validation
+	if s.ResizingService == "thumbor+cloudfront" {
+		s.CloudfrontPrivateKey, err = GetPrivateKeyFromFile(s.AWS_CLOUDFRONT_PRIVATE_KEY_PATH)
 
-		// read in private key from file (private key is PEM encoded PKCS)
-		bytes, err := ioutil.ReadFile(s.AWS_CLOUDFRONT_PRIVATE_KEY_PATH)
 		if err != nil {
 			return nil, err
 		}
-
-		// decode PEM encoding to ANS.1 PKCS1 DER
-		block, _ := pem.Decode(bytes)
-		if block == nil {
-			return nil, errors.New("Private Key: No Block found in keyfile")
-		}
-		if block.Type != "RSA PRIVATE KEY" {
-			return nil, errors.New("Private Key: Unsupported key type, should be RSA Private key in pem file")
-		}
-
-		// parse DER format to a native type
-		key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-
-		if err != nil {
-			return nil, errors.New("Private Key: could not parse RSA key")
-		}
-
-		s.CloudfrontPrivateKey = key
 	}
 
 	return s, nil
@@ -175,25 +184,14 @@ func (s *Site) IsValid() error {
 			"and provide the path to the private key(config AWSCloudfrontKeyPath)," +
 			" along with the associated key pair id (config AWSCloudfrontKeyPairId)")
 	} else if s.ResizingService == "thumbor+cloudfront" && s.AWS_CLOUDFRONT_PRIVATE_KEY_PATH != "" {
-		// borrowed from: https://github.com/ianmcmahon/encoding_ssh
+		// we do the entire parse to ensure it's valid, however, do not assign
+		// to the config here as we don't want there to be surprises for developers
+		// (nobody expects a method called IsValid to be making assignments to config)
+		_, err := GetPrivateKeyFromFile(s.AWS_CLOUDFRONT_PRIVATE_KEY_PATH)
 
-		// read in private key from file (private key is PEM encoded PKCS)
-		bytes, err := ioutil.ReadFile(s.AWS_CLOUDFRONT_PRIVATE_KEY_PATH)
 		if err != nil {
 			return err
 		}
-
-		// decode PEM encoding to ANS.1 PKCS1 DER
-		block, _ := pem.Decode(bytes)
-		if block == nil {
-			return errors.New("Private Key: No Block found in keyfile")
-		}
-		if block.Type != "RSA PRIVATE KEY" {
-			return errors.New("Private Key: Unsupported key type, should be RSA Private key in pem file")
-		}
-
-		// we'll skip parsing the whole damn thing, that'll be done on init.
-		// less dev surprises this way
 	}
 
 	return nil
