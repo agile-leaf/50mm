@@ -1,7 +1,7 @@
 # 50mm
 50mm (Go package name `fiftymm`) is a HTML image gallery software written in Go. It can serve very minimalistic HTML galleries of your photographs.
 
-You can setup 50mm to serve one album per domain (an example can be seen at [https://baku.50mm.asadjb.com/](https://baku.50mm.asadjb.com/)), or you can setup 50mm to serve multiple albums per domain. An example of the later can be seen at [https://50mm.asadjb.com/](https://50mm.asadjb.com/).
+You can set up 50mm to serve one album per domain (an example can be seen at [https://baku.50mm.asadjb.com/](https://baku.50mm.asadjb.com/)), or you can set up 50mm to serve multiple albums per domain. An example of the later can be seen at [https://50mm.asadjb.com/](https://50mm.asadjb.com/).
 
 ## Why another web image gallery software?
 Fair question. There are a couple of great options out there for web image galleries. But we had a very specific list of requirements we wanted, which is why we created 50mm:
@@ -31,39 +31,40 @@ Next copy the `templates` and `static` folders from `$GOPATH/src/github.com/agil
 	│   ├── index.css
 	│   └── placeholder.png
 	└── templates
-	├── album.html
-	└── index.html
+	    ├── album.html
+	    └── index.html
 
 Next we need to create a `config` folder to hold the configuration files for our sites and albums. This folder can be anywhere on your system, but I just create it inside the `deploy` folder to keep things simple.
 
 ### Configure a new site and album
 Inside the `config` folder, create a new INI file. Call it whatever you want, but it's best to name it after the site domain, as it allows you to easily find it again. For this example, I'll call it `50mm.ini`. Here's the sample config file I use for my site:
 
-	[DEFAULT]
-	Domain = 50mm.asadjb.com
-	CanonicalSecure = 1
-	BucketRegion = eu-west-1
-	BucketName = 50mm.photos
-	UseImgix = 1
-	BaseUrl = https://50mm-photos.imgix.net
-	AWSKeyId = AWS_ACCESS_KEY
-	AWSKey = AWS_SECRET_KEY
-	SiteTitle = 50mm
-	MetaTitle = 50mm | Photos by Jibran
-	HasAlbumIndex = 1
-	
-	[Baku]
-	Path = /baku/
-	BucketPrefix = baku/
-	MetaTitle = Baku, Azerbaijan | Photos by Jibran
-	AlbumTitle = Baku, Azerbaijan
-	
-	[Salalah]
-	Path = /salalah/
-	BucketPrefix = salalah/
-	MetaTitle = Salalah, Oman | Photos by Jibran
-	AlbumTitle = Salalah, Oman
+```INI
+[DEFAULT]
+Domain = 50mm.asadjb.com
+CanonicalSecure = 1
+BucketRegion = eu-west-1
+BucketName = 50mm.photos
+ResizingService = imgix
+BaseUrl = https://50mm-photos.imgix.net
+AWSKeyId = AWS_ACCESS_KEY
+AWSKey = AWS_SECRET_KEY
+SiteTitle = 50mm
+MetaTitle = 50mm | Photos by Jibran
+HasAlbumIndex = 1
 
+[Baku]
+Path = /baku/
+BucketPrefix = baku/
+MetaTitle = Baku, Azerbaijan | Photos by Jibran
+AlbumTitle = Baku, Azerbaijan
+
+[Salalah]
+Path = /salalah/
+BucketPrefix = salalah/
+MetaTitle = Salalah, Oman | Photos by Jibran
+AlbumTitle = Salalah, Oman
+```
 This configuration is for a site that has an index page, uses Imgix for optimised images, and has two albums. If you want to serve multiple sites, create multiple configuration files. Read on to understand what each of these configuration options mean.
 
 The `[DEFAULT]` section holds configurations for the entire site. Any other section in the config file is parsed as configuration for an album in the site.
@@ -74,8 +75,12 @@ The `[DEFAULT]` section holds configurations for the entire site. Any other sect
 - `S3Host`: The endpoint for your S3-compatible object store. You can safely ignore this if you are using Amazon S3.
 - `BucketRegion`: The AWS S3 region that hosts your photos bucket. If your object store doesn't have explicit regions try using "generic"
 - `BucketName`: Name of your S3 bucket.
-- `UseImgix`: If set to 1, the image URLs generated for your albums will use the Imgix image transformation service. This results in smaller image sizes and a faster web site, but Imgix is a paid service. If you turn this off (by setting the option to 0), the image URLs on your site will be AWS S3 URLs of the files you upload.
-- `BaseUrl`: The base URL for your Imgix account. Look at the section _Imgix setup_ below to understand what value to put here. You can skip this option if you don't use Imgix.
+- ~~`UseImgix`: If set to 1, the image URLs generated for your albums will use the Imgix image transformation service. This results in smaller image sizes and a faster web site, but Imgix is a paid service. If you turn this off (by setting the option to 0), the image URLs on your site will be AWS S3 URLs of the files you upload.~~ deprecated, use `ResizingService = imgix` instead.
+- `ResizingService` The resizing service to use (i.e, how to format your resized URLs), valid options: `imgix`, `thumbor`, `thumbor+cloudfront`, see detailed documentation below.
+- `ResizingServiceSecret` = A shared secret key only required for `thumbor` resizing service in order to sign URLs.
+- `AWSCloudfrontKeyPath` = The path to your private key (a .pem file), set up in conjunction with amazon's cloudfront service, a path should look like `/path/to/your/pk-something.pem`,  required only for `thumbor+cloudfront` resizing service.
+- `AWSCloudfrontKeyPairId` = The Key Pair Id provided by amazon when you generate a private key, required only for `thumbor+cloudfront` resizing service.
+- `BaseUrl`: The base URL for your Imgix account. Look at the section _Imgix set up_ below to understand what value to put here. You can skip this option if you don't use Imgix.
 - `AWSKeyId`: The AWS access key for an IAM user that has read access to your photos bucket.
 - `AWSKey`: The AWS secret key for your IAM user.
 - `SiteTitle`: Name of the site, displayed as the `H1` heading on all pages of the site.
@@ -100,10 +105,28 @@ There are a few things to remember about using authentication:
 
 You can also have albums served on the site root. So instead of showing a list of albums on the root domain `50mm.asadjb.com`, you can instead just show the album page. To configure this, set the `HasAlbumIndex` in the site config to 0 and set the `Path` for the album you want at the root to `/`.
 
-### Configuring Imgix
-You can use the image transformation service Imgix to serve optimised images. To do so, you first need to get an Imgix account, and setup a source to point to the same AWS S3 bucket you have configured for the site.
+### Configuring Image Resizing Subsystem
+You can use a few image transformation services to serve optimised images. To do so, you need to do some configuration.
 
-Once that's done, you can copy the "Imgix Domain" for that source, which looks something like [https://source-name.imgix.net](https://50mm-photos.imgix.net)and use it as the value for `BaseUrl` in your site config.
+#### Imgix (imgix)
+ Setting up imgix requires you set a source to point to the same AWS S3 bucket you have configured for the site.
+
+Once that's done, you can copy the "Imgix Domain" for that source, which looks something like [https://source-name.imgix.net](https://50mm-photos.imgix.net) and use it as the value for `BaseUrl` in your site config.
+
+Required configuration variables: `ResizingService` set to `imgix`, `BaseUrl`.
+
+#### Thumbor (thumbor)
+Thumbor is a popular open source image manipulation web application. It can be deployed as a standalone service. Many websites use Thumbor internally for their image manipulation. 50mm thumbor support _requires_ you use a shared secret for security purposes (see their [security documentation](https://thumbor.readthedocs.io/en/latest/security.html) for details). The `BaseUrl` for thumbor is wherever your thumbor server lies, e.g: https://thumbor.example.com
+
+Required configuration variables: `ResizingService` set to `thumbor`, `BaseUrl`, `ResizingServiceSecret`.
+
+#### Thumbor + AWS Lambda + AWS Cloudfront (thumbor+cloudfront)
+AWS provides a [serverless image manipulation](https://aws.amazon.com/answers/web-applications/serverless-image-handler/) configuration that is easy to deploy. It runs thumbor under the hood and does it's distributed via Cloudfront. The Thumbor+Cloudfront system uses Cloudfront signed urls rather than thumbor signed urls, so the implementation and configuration is slightly more complex (see configuration options).
+
+You will need to sort yourself a [Cloudfront keypair](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-trusted-signers.html#private-content-creating-cloudfront-key-pairs). 50mm only needs your private key file (in pem format) and your access key id. Please take the usual precautions when configuring your private keys.
+
+Required configuration variables: `ResizingService` set to `thumbor+cloudfront`, `BaseUrl`, `AWSCloudfrontKeyPath`, `AWSCloudfrontKeyPairId`.
+
 
 ### Configuring Nginx
 If you use Nginx as your reverse proxy in-front of 50mm, you can use a configuration file similar to this:
@@ -111,19 +134,19 @@ If you use Nginx as your reverse proxy in-front of 50mm, you can use a configura
 	server {
 	    listen 80;
 	    server_name 50mm.asadjb.com;
-	
+
 	    location / {
 	        proxy_pass http://127.0.0.1:8080;
 	        proxy_set_header Host $http_host;
 	    }
 	}
 
-You can also have SSL setup on Nginx if needed. Just remember to turn on the `CanonicalSecure` setting in your site config.
+You can also have SSL configured on Nginx if needed. Just remember to turn on the `CanonicalSecure` setting in your site config.
 
-### Setup the 50mm server (binary)
+### Set up the 50mm server (binary)
 You can use whichever solution you want to keep the 50mm server running in the background. I personally use `supervisord`, but you can use `init`, `upstart`, `systemd`, or any other solution you want; including running it inside a `tmux` session if you feel brave!
 
-Just remember to setup the `FIFTYMM_CONFIG_DIR` and `FIFTYMM_PORT` environment variables.
+Just remember to set the `FIFTYMM_CONFIG_DIR` and `FIFTYMM_PORT` environment variables.
 
 Here's the `supervisord` config I use:
 
@@ -134,7 +157,7 @@ Here's the `supervisord` config I use:
 	stdout_logfile=/home/asadjb/logs/user/50mm_stdout.log
 	stderr_logfile=/home/asadjb/logs/user/50mm_stderr.log
 
-### Setup the 50mm server (docker)
+### Set up the 50mm server (docker)
 You may also choose to run 50mm in a docker environment, for the moment you'll have to build your own image with `docker build -t 50mm:latest .`, you  may then run it with `docker run -p <reachable_port>:80 -v /path/to/config/directory:/deploy/config 50mm:latest`. Make sure your configuration reflects the domain as it would be seen in your browser.
 
 ## Upload photos and bask in the glory!
