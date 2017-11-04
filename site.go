@@ -27,7 +27,7 @@ type Site struct {
 	BucketRegion string
 	BucketName   string
 
-	UseImgix bool //deprecated
+	UseImgix              bool //deprecated
 	ResizingService       string
 	ResizingServiceSecret string
 	BaseUrl               string
@@ -184,28 +184,31 @@ func (s *Site) IsValid() error {
 		return errors.New("ResizingService supercedes UseImgix, please use ResizingService = imgix instead.")
 	}
 
-	if s.ResizingService != "imgix" && s.ResizingService != "thumbor" && s.ResizingService != "thumbor+cloudfront" && s.ResizingService != "" {
-		return errors.New(fmt.Sprintf("Unrecognized/Unimplemented resizing service '%s',"+
-			" valid options are imgix, thumbor, thumbor+cloudfront", s.ResizingService))
-	}
-
-	if s.ResizingService == "thumbor" && s.ResizingServiceSecret == "" {
-		return errors.New("Thumbor resizing service requires use of a shared secret for URL signing")
-	}
-
-	if s.ResizingService == "thumbor+cloudfront" && (s.AWS_CLOUDFRONT_PRIVATE_KEY_PATH == "" || s.AWS_CLOUDFRONT_PRIVATE_KEY_PAIR_ID == "") {
-		return errors.New("thumbor+cloudfront resizing service requires you to provision a private key " +
-			"and provide the path to the private key(config AWSCloudfrontKeyPath)," +
-			" along with the associated key pair id (config AWSCloudfrontKeyPairId)")
-	} else if s.ResizingService == "thumbor+cloudfront" && s.AWS_CLOUDFRONT_PRIVATE_KEY_PATH != "" {
-		// we do the entire parse to ensure it's valid, however, do not assign
-		// to the config here as we don't want there to be surprises for developers
-		// (nobody expects a method called IsValid to be making assignments to config)
-		_, err := GetPrivateKeyFromFile(s.AWS_CLOUDFRONT_PRIVATE_KEY_PATH)
-
-		if err != nil {
-			return err
+	switch s.ResizingService {
+	case "imgix", "":
+		break // All valid configs
+	case "tumbor":
+		if s.ResizingServiceSecret == "" {
+			return errors.New("Thumbor resizing service requires use of a shared secret for URL signing")
 		}
+	case "thumbor+cloudfront":
+		if s.AWS_CLOUDFRONT_PRIVATE_KEY_PATH == "" || s.AWS_CLOUDFRONT_PRIVATE_KEY_PAIR_ID == "" {
+			return errors.New("thumbor+cloudfront resizing service requires you to provision a private key " +
+				"and provide the path to the private key(config AWSCloudfrontKeyPath)," +
+				" along with the associated key pair id (config AWSCloudfrontKeyPairId)")
+		} else {
+			// we do the entire parse to ensure it's valid, however, do not assign
+			// to the config here as we don't want there to be surprises for developers
+			// (nobody expects a method called IsValid to be making assignments to config)
+			_, err := GetPrivateKeyFromFile(s.AWS_CLOUDFRONT_PRIVATE_KEY_PATH)
+
+			if err != nil {
+				return err
+			}
+		}
+	default:
+		return fmt.Errorf("Unrecognized/Unimplemented resizing service '%s',"+
+			" valid options are imgix, thumbor, thumbor+cloudfront", s.ResizingService)
 	}
 
 	return nil
