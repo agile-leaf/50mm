@@ -86,7 +86,7 @@ func handleAlbumPage(album *Album, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if imageUrls, err := album.GetAllPhotos(); err != nil {
+	if imageUrls, err := album.GetOrderedPhotos(); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
 		return

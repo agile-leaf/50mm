@@ -12,9 +12,12 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-ini/ini"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
 )
 
 const CACHE_INTERVAL = 1 * time.Hour
+const ORDERING_YAML_NAME = "ordering.yaml"
 
 type Album struct {
 	site *Site
@@ -27,17 +30,32 @@ type Album struct {
 
 	MetaTitle  string
 	AlbumTitle string
+	Ordering AlbumOrdering
 
 	InIndex bool
 
 	KeyCache        atomic.Value
-	LastCacheUpdate time.Time
+	OrderingCache        atomic.Value
+	LastKeyCacheUpdate time.Time
+	LastOrderingCacheUpdate time.Time
 
-	CacheUpdateMutex sync.Mutex
+	KeyCacheUpdateMutex      sync.Mutex
+	AlbumOrderingUpdateMutex sync.Mutex
 }
 
-type GetFromCacheResult struct {
+type AlbumOrdering struct {
+	Cover string
+	Thumbnails []string
+	Ordering []string
+}
+
+type GetFromKeyCacheResult struct {
 	keys []string
+	err  error
+}
+
+type GetFromOrderingCacheResult struct {
+	ordering AlbumOrdering
 	err  error
 }
 
@@ -125,7 +143,8 @@ func (a *Album) GetCanonicalUrl() *url.URL {
 }
 
 func (a *Album) GetCoverPhoto() (Renderable, error) {
-	if photos, err := a.GetAllPhotos(); err != nil {
+	//TODO pick this up through the ordering struct
+	if photos, err := a.GetOrderedPhotos(); err != nil {
 		return nil, err
 	} else {
 		if len(photos) > 0 {
@@ -146,10 +165,11 @@ func (a *Album) GetCoverPhotoForTemplate() Renderable {
 }
 
 func (a *Album) GetThumbnailPhotosForTemplate() []Renderable {
-	if photos, err := a.GetAllPhotos(); err != nil {
+	if photos, err := a.GetOrderedPhotos(); err != nil {
 		fmt.Printf("Unable to get thumbnail photos. Error: %s\n", err.Error())
 		return nil
 	} else {
+		//TODO pick this up through the ordering struct
 		if len(photos) > 6 {
 			return photos[1:6]
 		} else if len(photos) > 0 {
@@ -160,6 +180,9 @@ func (a *Album) GetThumbnailPhotosForTemplate() []Renderable {
 	}
 }
 
+//lowest level, gets the list of objects in the bucket and prefix that
+//corresponds to the album it is acting on, it's an object with multiple
+//fields.
 func (a *Album) GetAllObjects() ([]*s3.Object, error) {
 	svc, err := a.site.GetS3Service()
 	if err != nil {
@@ -174,11 +197,12 @@ func (a *Album) GetAllObjects() ([]*s3.Object, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return objects.Contents, nil
 }
 
-func (a *Album) GetAllImageKeysFromBucket() ([]string, error) {
+//wrapper around the lowest level method to extract out the fields of relevance, namely
+//the key of an object, also drops prefixes (i.e: the folder path) from that output.
+func (a *Album) GetAllObjectKeysFromBucket() ([]string, error) {
 	objects, err := a.GetAllObjects()
 	if err != nil {
 		return nil, err
@@ -188,6 +212,7 @@ func (a *Album) GetAllImageKeysFromBucket() ([]string, error) {
 	for _, obj := range objects {
 		key := *obj.Key
 		if key[len(*obj.Key)-1] != '/' {
+			//check for 'folder' name vs actual object - objects end without trailing /
 			imageKeys = append(imageKeys, key)
 		}
 	}
@@ -195,53 +220,71 @@ func (a *Album) GetAllImageKeysFromBucket() ([]string, error) {
 	return imageKeys, nil
 }
 
-func (a *Album) GetAllPhotos() ([]Renderable, error) {
+//highest level, acts on an album to return processed renderable imageurls, here we must also
+//filter out any non-renderables and process any other metadata we expect to find.
+func (a *Album) GetOrderedPhotos() ([]Renderable, error) {
 	var imageUrls []Renderable
 
-	imageKeys, err := a.GetAllImageKeys()
+	albumOrdering, err := a.GetAlbumOrdering()
+
 	if err != nil {
-		fmt.Printf("Unable to get image keys from S3. Error: %s\n", err.Error())
+		fmt.Printf("Unable to pick up album ordering from S3 ordering.yaml because: %s", err.Error())
+	}
+
+	fmt.Print(albumOrdering)
+
+	imageKeys, err := a.GetAllObjectKeys()
+	if err != nil {
+		fmt.Printf("Unable to get object keys from S3. Error: %s\n", err.Error())
 		return imageUrls, err
 	}
 
 	for _, v := range imageKeys {
-		imageUrl := a.site.GetPhotoForKey(v)
-		imageUrls = append(imageUrls, imageUrl)
+		if strings.HasSuffix(v, "ordering.yaml") {
+			//for now, just do nothing, we simply want to avoid appending,
+			//when we agree on a list of valid formats, we can ditch this check.
+		} else {
+			imageUrl := a.site.GetPhotoForKey(v)
+			imageUrls = append(imageUrls, imageUrl)
+		}
 	}
 
 	return imageUrls, nil
 }
 
-func (a *Album) GetAllImageKeys() ([]string, error) {
-	c := make(chan *GetFromCacheResult)
+//wrapper around GetAllObjectKeysFromBucket to add in a caching layer, nothing below
+//this layer filters or reorders the list of **objects** returned from S3.
+//note that this DOES filter out the album prefix.
+func (a *Album) GetAllObjectKeys() ([]string, error) {
+	c := make(chan *GetFromKeyCacheResult)
 	go func() {
 		var keys []string
 		var err error
 
 		if a.KeyCache.Load() != nil {
-			c <- &GetFromCacheResult{a.KeyCache.Load().([]string), nil}
+			c <- &GetFromKeyCacheResult{a.KeyCache.Load().([]string), nil}
 
-			a.CacheUpdateMutex.Lock()
-			if a.NeedsUpdate() {
-				keys, err = a.GetAllImageKeysFromBucket()
+			a.KeyCacheUpdateMutex.Lock()
+			if a.NeedsKeyCacheUpdate() {
+				keys, err = a.GetAllObjectKeysFromBucket()
 				if err == nil {
 					a.KeyCache.Store(keys)
-					a.LastCacheUpdate = time.Now()
+					a.LastKeyCacheUpdate = time.Now()
 				}
 			}
 
-			a.CacheUpdateMutex.Unlock()
+			a.KeyCacheUpdateMutex.Unlock()
 		} else {
-			a.CacheUpdateMutex.Lock()
+			a.KeyCacheUpdateMutex.Lock()
 
-			keys, err = a.GetAllImageKeysFromBucket()
+			keys, err = a.GetAllObjectKeysFromBucket()
 			if err == nil {
 				a.KeyCache.Store(keys)
-				a.LastCacheUpdate = time.Now()
+				a.LastKeyCacheUpdate = time.Now()
 			}
-			c <- &GetFromCacheResult{keys, err}
+			c <- &GetFromKeyCacheResult{keys, err}
 
-			a.CacheUpdateMutex.Unlock()
+			a.KeyCacheUpdateMutex.Unlock()
 		}
 	}()
 
@@ -250,6 +293,80 @@ func (a *Album) GetAllImageKeys() ([]string, error) {
 		return nil, result.err
 	} else {
 		return result.keys, result.err
+	}
+}
+
+//retrieves the actual album ordering from s3, it expects a file as hard-coded in
+// the constant ORDERING_YAML_NAME
+func (a *Album) GetAlbumOrderingFromS3() (AlbumOrdering, error) {
+	var albumOrdering AlbumOrdering
+
+	svc, err := a.site.GetS3Service()
+	if err != nil {
+		return albumOrdering, err
+	}
+
+	orderingYAMLKey := strings.Join([]string{a.BucketPrefix, ORDERING_YAML_NAME}, "/")
+	yaml_object, err := svc.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(a.site.BucketName),
+		Key:    aws.String(orderingYAMLKey),
+	})
+
+	if err != nil {
+		return albumOrdering, err
+	}
+
+	//extract the contents from what we read so we can then parse the yaml
+	data_bytes, err := ioutil.ReadAll(yaml_object.Body)
+	//data_string := string(data_bytes)
+	err = yaml.Unmarshal(data_bytes, &albumOrdering)
+
+	if err != nil {
+		return albumOrdering, err
+	}
+
+	return albumOrdering, nil
+}
+
+//note that this also caches negative values, i.e: adding a ordering file may take an hour
+//to be rechecked.
+func (a *Album) GetAlbumOrdering() (AlbumOrdering, error) {
+	c := make(chan *GetFromOrderingCacheResult)
+	go func() {
+		if a.OrderingCache.Load() != nil {
+			c <- &GetFromOrderingCacheResult{a.OrderingCache.Load().(AlbumOrdering), nil}
+
+			a.AlbumOrderingUpdateMutex.Lock()
+			if a.NeedsOrderingCacheUpdate() {
+
+				albumOrdering, err := a.GetAlbumOrderingFromS3()
+				if err == nil {
+					a.OrderingCache.Store(albumOrdering)
+					a.LastOrderingCacheUpdate = time.Now()
+				}
+			}
+			a.AlbumOrderingUpdateMutex.Unlock()
+		} else {
+			a.AlbumOrderingUpdateMutex.Lock()
+			albumOrdering, err := a.GetAlbumOrderingFromS3()
+			if err == nil {
+				a.OrderingCache.Store(albumOrdering)
+				a.LastOrderingCacheUpdate = time.Now()
+			}
+
+			c <- &GetFromOrderingCacheResult{albumOrdering, err}
+
+			a.AlbumOrderingUpdateMutex.Unlock()
+		}
+	}()
+
+	var albumOrdering AlbumOrdering
+	result := <-c
+	if result.err != nil {
+		//consumer should be checking err
+		return albumOrdering, result.err
+	} else {
+		return result.ordering, result.err
 	}
 }
 
@@ -264,6 +381,7 @@ func (a *Album) ImageExists(slug string) bool {
 		Bucket: aws.String(a.site.BucketName),
 		Key:    aws.String(key),
 	})
+
 	if err != nil {
 		return false
 	}
@@ -271,6 +389,10 @@ func (a *Album) ImageExists(slug string) bool {
 	return true
 }
 
-func (a *Album) NeedsUpdate() bool {
-	return time.Now().Sub(a.LastCacheUpdate) > CACHE_INTERVAL
+func (a *Album) NeedsKeyCacheUpdate() bool {
+	return time.Now().Sub(a.LastKeyCacheUpdate) > CACHE_INTERVAL
+}
+
+func (a *Album) NeedsOrderingCacheUpdate() bool {
+	return time.Now().Sub(a.LastOrderingCacheUpdate) > CACHE_INTERVAL
 }
