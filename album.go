@@ -14,6 +14,7 @@ import (
 	"github.com/go-ini/ini"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 )
 
 const CACHE_INTERVAL = 1 * time.Hour
@@ -44,9 +45,10 @@ type Album struct {
 }
 
 type AlbumOrdering struct {
-	Cover string
-	Thumbnails []string
-	Ordering []string
+	Cover             string
+	Thumbnails        []string
+	Ordering          []string
+	negativeCacheThis bool
 }
 
 type GetFromKeyCacheResult struct {
@@ -300,7 +302,6 @@ func (a *Album) GetAllObjectKeys() ([]string, error) {
 // the constant ORDERING_YAML_NAME
 func (a *Album) GetAlbumOrderingFromS3() (AlbumOrdering, error) {
 	var albumOrdering AlbumOrdering
-
 	svc, err := a.site.GetS3Service()
 	if err != nil {
 		return albumOrdering, err
@@ -313,6 +314,13 @@ func (a *Album) GetAlbumOrderingFromS3() (AlbumOrdering, error) {
 	})
 
 	if err != nil {
+		if aerr, ok := err.(awserr.RequestFailure); ok {
+			if aerr.StatusCode() == 404 {
+				albumOrdering.negativeCacheThis = true
+			}
+		}
+		//basically, we only want to negatively cache 404's, so we can mark this as such.
+		//should be retried later, but exception handling is up to the caller.
 		return albumOrdering, err
 	}
 
@@ -322,6 +330,10 @@ func (a *Album) GetAlbumOrderingFromS3() (AlbumOrdering, error) {
 	err = yaml.Unmarshal(data_bytes, &albumOrdering)
 
 	if err != nil {
+		//we were unable to read what the yaml was, it's likely malformed, and that may not change
+		//anytime soon, so we negatively cache it, the caller should be aware
+		//that it's going to be a bad result though, so raise the error
+		albumOrdering.negativeCacheThis = true
 		return albumOrdering, err
 	}
 
@@ -340,16 +352,23 @@ func (a *Album) GetAlbumOrdering() (AlbumOrdering, error) {
 			if a.NeedsOrderingCacheUpdate() {
 
 				albumOrdering, err := a.GetAlbumOrderingFromS3()
-				if err == nil {
+				if err == nil || albumOrdering.negativeCacheThis {
+					// whether the item is valid or we should be negatively
+					// caching this result (probs err!=nil, but the value
+					// should be there and a valid boolean.
 					a.OrderingCache.Store(albumOrdering)
 					a.LastOrderingCacheUpdate = time.Now()
 				}
+
 			}
 			a.AlbumOrderingUpdateMutex.Unlock()
 		} else {
 			a.AlbumOrderingUpdateMutex.Lock()
 			albumOrdering, err := a.GetAlbumOrderingFromS3()
-			if err == nil {
+			if err == nil || albumOrdering.negativeCacheThis {
+				// whether the item is valid or we should be negatively
+				// caching this result (probs err!=nil, but the value
+				// should be there and a valid boolean.
 				a.OrderingCache.Store(albumOrdering)
 				a.LastOrderingCacheUpdate = time.Now()
 			}
