@@ -152,14 +152,36 @@ func (a *Album) GetCanonicalUrl() *url.URL {
 	return u
 }
 
-//golang << python on some things. #discuss.
-func contains(corpus []string, findme string) bool {
+//check if a path exists, takes in to account some minor things
+//like preceding slashes, etc.
+func containsPath(corpus []string, findme string) bool {
+	//TODO this can be moved to set operations for a great speed increase.
+	findmeStripped := strings.TrimLeft(findme, "/")
 	for _, current := range corpus {
-		if current == findme {
+		currentStripped := strings.TrimLeft(current, "/")
+		if currentStripped == findmeStripped {
 			return true
 		}
 	}
 	return false
+}
+
+func mergeList(bucketKeys []string, configKeys []string) []string {
+	var mergedKeys []string
+	for _, configKey := range configKeys {
+		// keys in the config come first, silently drop non-existents
+		if containsPath(bucketKeys, configKey) {
+			mergedKeys = append(mergedKeys, configKey)
+		}
+	}
+	for _, bucketKey := range bucketKeys {
+		// all keys not yet processed previously (by config) are appended
+		// makes sure that keys seen before do not re-appear.
+		if !containsPath(mergedKeys, bucketKey) {
+			mergedKeys = append(mergedKeys, bucketKey)
+		}
+	}
+	return mergedKeys
 }
 
 func (a *Album) GetCoverPhoto() (Renderable, error) {
@@ -228,14 +250,19 @@ func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 	albumOrderingConfiguration, err := a.GetAlbumOrderingConfiguration()
 
 	if err != nil {
-		fmt.Printf("Unable to pick up album ordering from S3 ordering yaml because: %s", err.Error())
+		if aerr, ok := err.(awserr.RequestFailure); ok {
+			if aerr.StatusCode() != 404 {
+				//regular 404's add too much noise, we couldn't find the file we shouldn't say anything.
+				fmt.Printf("\nUnable to pick up album ordering for album %s from S3, Error: %s", a.Path, err.Error())
+			}
+		}
 	}
 
 	// pick up the raw keys, ready for comparison to our configuration
 	imageKeys, err := a.GetAllObjectKeys()
 
 	if err != nil {
-		fmt.Printf("Unable to get object keys from S3. Error: %s\n", err.Error())
+		fmt.Printf("\nUnable to get object keys from S3 for album %s. Error: %s", a.Path, err.Error())
 		//note albumOrdering would be empty, error checking matters!
 		return albumOrdering, err
 	}
@@ -261,8 +288,15 @@ func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 	//   don't want to pick out the same photo for both cover and thumbnail.
 
 	//let's start with the cover photo, there's only one, this should be easy.
-	if contains(cleanImageKeys, albumOrderingConfiguration.Cover) {
-		albumOrdering.Cover = a.site.GetPhotoForKey(albumOrderingConfiguration.Cover)
+
+	if albumOrderingConfiguration.Cover != "" {
+		if containsPath(cleanImageKeys, albumOrderingConfiguration.Cover) {
+			albumOrdering.Cover = a.site.GetPhotoForKey(albumOrderingConfiguration.Cover)
+		} else {
+			fmt.Printf("\ncover photo specified in ordering file not found in bucket, check %s exists. "+
+				"Falling back to first photo", albumOrderingConfiguration.Cover)
+			albumOrdering.Cover = a.site.GetPhotoForKey(cleanImageKeys[0])
+		}
 	} else {
 		albumOrdering.Cover = a.site.GetPhotoForKey(cleanImageKeys[0])
 	}
@@ -270,20 +304,27 @@ func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 	//TODO we're stubbing here, just to get the whole infra to work again, fixme.
 	//thumbnails
 	var thumbKeys []string
-	if len(cleanImageKeys) > 6 {
-		thumbKeys = cleanImageKeys[1:6]
-	} else if len(cleanImageKeys) > 1 {
-		thumbKeys = cleanImageKeys[1:]
+	if len(albumOrderingConfiguration.Thumbnails) > 0 {
+		thumbKeys = mergeList(cleanImageKeys, albumOrderingConfiguration.Thumbnails)
+	} else {
+		//take care of the offset here (i.e: cover is index 0 if we're not using the config)
+		thumbKeys = make([]string, len(cleanImageKeys)-1)
+		copy(thumbKeys, cleanImageKeys[1:])
 	}
 
+	if len(thumbKeys) > 5 {
+		thumbKeys = thumbKeys[0:5]
+	} else if len(thumbKeys) > 0 {
+		thumbKeys = thumbKeys[0:]
+	}
 
 	for _, v := range thumbKeys {
 		albumOrdering.Thumbnails = append(albumOrdering.Thumbnails, a.site.GetPhotoForKey(v))
 	}
 
 	//the actual album ordering
-	//TODO we're stubbing here, just to get the whole infra to work again, fixme.
-	for _, v := range cleanImageKeys {
+	mergedOrdering := mergeList(cleanImageKeys, albumOrderingConfiguration.Ordering)
+	for _, v := range mergedOrdering {
 		albumOrdering.Ordering = append(albumOrdering.Ordering, a.site.GetPhotoForKey(v))
 	}
 
@@ -348,7 +389,7 @@ func (a *Album) GetAlbumOrderingConfigurationFromS3AndPreprocess() (AlbumOrderin
 		return albumOrdering, err
 	}
 
-	orderingYAMLKey := strings.Join([]string{a.BucketPrefix, ORDERING_YAML_NAME}, "/")
+	orderingYAMLKey := strings.Join([]string{a.BucketPrefix, ORDERING_YAML_NAME}, "")
 	yaml_object, err := svc.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(a.site.BucketName),
 		Key:    aws.String(orderingYAMLKey),
@@ -374,6 +415,7 @@ func (a *Album) GetAlbumOrderingConfigurationFromS3AndPreprocess() (AlbumOrderin
 		//we were unable to read what the yaml was, it's likely malformed, and that may not change
 		//anytime soon, so we negatively cache it, the caller should be aware
 		//that it's going to be a bad result though, so raise the error
+		fmt.Printf("\nCould not parse yaml for album %s, it's likely malformed. error: %s", a.Path, err)
 		albumOrdering.negativeCacheThis = true
 		return albumOrdering, err
 	}
@@ -389,11 +431,24 @@ func (a *Album) GetAlbumOrderingConfigurationFromS3AndPreprocess() (AlbumOrderin
 
 	//cool, now let's do the same for thumbnails
 	if len(albumOrdering.Thumbnails) > 0 {
-		parsedAlbumPrefix, _ := url.Parse(a.Path)
-		parsedCoverKey, _ := url.Parse(albumOrdering.Cover)
+		for _, v := range albumOrdering.Thumbnails {
+			parsedAlbumPrefix, _ := url.Parse(a.Path)
+			parsedCoverKey, _ := url.Parse(v)
 
-		fullPath := parsedAlbumPrefix.ResolveReference(parsedCoverKey)
-		albumOrdering.Cover = fullPath.String()
+			fullPath := parsedAlbumPrefix.ResolveReference(parsedCoverKey).String()
+			albumOrdering.Thumbnails = append(albumOrdering.Thumbnails, fullPath)
+		}
+	}
+
+	//and finally, for the overall order.
+	if len(albumOrdering.Ordering) > 0 {
+		for _, v := range albumOrdering.Ordering {
+			parsedAlbumPrefix, _ := url.Parse(a.Path)
+			parsedCoverKey, _ := url.Parse(v)
+
+			fullPath := parsedAlbumPrefix.ResolveReference(parsedCoverKey).String()
+			albumOrdering.Ordering = append(albumOrdering.Ordering, fullPath)
+		}
 	}
 
 	return albumOrdering, nil
