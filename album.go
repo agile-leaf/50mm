@@ -31,7 +31,6 @@ type Album struct {
 
 	MetaTitle  string
 	AlbumTitle string
-	Ordering AlbumOrdering
 
 	InIndex bool
 
@@ -44,11 +43,20 @@ type Album struct {
 	AlbumOrderingUpdateMutex sync.Mutex
 }
 
-type AlbumOrdering struct {
+//this struct will store the _configuration_ as read from a yaml file
+type AlbumOrderingConfiguration struct {
 	Cover             string
 	Thumbnails        []string
 	Ordering          []string
 	negativeCacheThis bool
+}
+
+//this struct will store our actual renderable orderings, as processed
+//by reading the config, the actual file index, and doing some merging
+type AlbumOrdering struct {
+	Cover             Renderable
+	Thumbnails        []Renderable
+	Ordering          []Renderable
 }
 
 type GetFromKeyCacheResult struct {
@@ -57,8 +65,8 @@ type GetFromKeyCacheResult struct {
 }
 
 type GetFromOrderingCacheResult struct {
-	ordering AlbumOrdering
-	err  error
+	ordering AlbumOrderingConfiguration
+	err      error
 }
 
 func NewAlbumFromConfig(section *ini.Section, s *Site) (*Album, error) {
@@ -144,42 +152,29 @@ func (a *Album) GetCanonicalUrl() *url.URL {
 	return u
 }
 
-func (a *Album) GetCoverPhoto() (Renderable, error) {
-	//TODO pick this up through the ordering struct
-	if photos, err := a.GetOrderedPhotos(); err != nil {
-		return nil, err
-	} else {
-		if len(photos) > 0 {
-			return photos[0], nil
+//golang << python on some things. #discuss.
+func contains(corpus []string, findme string) bool {
+	for _, current := range corpus {
+		if current == findme {
+			return true
 		}
 	}
+	return false
+}
 
-	return &ErrorPhoto{}, nil
+func (a *Album) GetCoverPhoto() (Renderable, error) {
+	albumOrdering, err := a.GetOrderedPhotos()
+	return albumOrdering.Cover, err
 }
 
 func (a *Album) GetCoverPhotoForTemplate() Renderable {
-	if photo, err := a.GetCoverPhoto(); err != nil {
-		fmt.Printf("Unable to get cover photo. Error: %s\n", err.Error())
-		return &ErrorPhoto{}
-	} else {
-		return photo
-	}
+	cover, _ := a.GetCoverPhoto()
+	return cover
 }
 
 func (a *Album) GetThumbnailPhotosForTemplate() []Renderable {
-	if photos, err := a.GetOrderedPhotos(); err != nil {
-		fmt.Printf("Unable to get thumbnail photos. Error: %s\n", err.Error())
-		return nil
-	} else {
-		//TODO pick this up through the ordering struct
-		if len(photos) > 6 {
-			return photos[1:6]
-		} else if len(photos) > 0 {
-			return photos[1:]
-		} else {
-			return nil
-		}
-	}
+	albumOrdering, _ := a.GetOrderedPhotos()
+	return albumOrdering.Thumbnails
 }
 
 //lowest level, gets the list of objects in the bucket and prefix that
@@ -224,34 +219,75 @@ func (a *Album) GetAllObjectKeysFromBucket() ([]string, error) {
 
 //highest level, acts on an album to return processed renderable imageurls, here we must also
 //filter out any non-renderables and process any other metadata we expect to find.
-func (a *Album) GetOrderedPhotos() ([]Renderable, error) {
-	var imageUrls []Renderable
+func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 
-	albumOrdering, err := a.GetAlbumOrdering()
+	//TODO cache this, probably in config.
+	var albumOrdering AlbumOrdering
+
+	//pick up our configuration, note that this may be all empties if there's an err in retrieval/parsing.
+	albumOrderingConfiguration, err := a.GetAlbumOrderingConfiguration()
 
 	if err != nil {
-		fmt.Printf("Unable to pick up album ordering from S3 ordering.yaml because: %s", err.Error())
+		fmt.Printf("Unable to pick up album ordering from S3 ordering yaml because: %s", err.Error())
 	}
 
-	fmt.Print(albumOrdering)
-
+	// pick up the raw keys, ready for comparison to our configuration
 	imageKeys, err := a.GetAllObjectKeys()
+
 	if err != nil {
 		fmt.Printf("Unable to get object keys from S3. Error: %s\n", err.Error())
-		return imageUrls, err
+		//note albumOrdering would be empty, error checking matters!
+		return albumOrdering, err
 	}
 
+	var cleanImageKeys []string
+	//clean out the keys, we don't want the yaml interfering with the yaml :P
 	for _, v := range imageKeys {
-		if strings.HasSuffix(v, "ordering.yaml") {
+		if strings.HasSuffix(v, ORDERING_YAML_NAME) {
 			//for now, just do nothing, we simply want to avoid appending,
 			//when we agree on a list of valid formats, we can ditch this check.
 		} else {
-			imageUrl := a.site.GetPhotoForKey(v)
-			imageUrls = append(imageUrls, imageUrl)
+			cleanImageKeys = append(cleanImageKeys, v)
 		}
 	}
 
-	return imageUrls, nil
+	//okay, now we're ready for processing and merging.
+	//some ground rules:
+	//0) if there is no ordering file, or an error retrieving/parsing the file, everything must work as
+	//   if there was never an ordering file in the first place.
+	//1) if an image is in the config but not in the bucket, it's silently dropped
+	//2) ordering of keys in config come before ordering of keys in bucket (i.e: listed in config THEN non-listed)
+	//3) each section is independent and optional but has some interlinkages, (this gets difficult because you
+	//   don't want to pick out the same photo for both cover and thumbnail.
+
+	//let's start with the cover photo, there's only one, this should be easy.
+	if contains(cleanImageKeys, albumOrderingConfiguration.Cover) {
+		albumOrdering.Cover = a.site.GetPhotoForKey(albumOrderingConfiguration.Cover)
+	} else {
+		albumOrdering.Cover = a.site.GetPhotoForKey(cleanImageKeys[0])
+	}
+
+	//TODO we're stubbing here, just to get the whole infra to work again, fixme.
+	//thumbnails
+	var thumbKeys []string
+	if len(cleanImageKeys) > 6 {
+		thumbKeys = cleanImageKeys[1:6]
+	} else if len(cleanImageKeys) > 1 {
+		thumbKeys = cleanImageKeys[1:]
+	}
+
+
+	for _, v := range thumbKeys {
+		albumOrdering.Thumbnails = append(albumOrdering.Thumbnails, a.site.GetPhotoForKey(v))
+	}
+
+	//the actual album ordering
+	//TODO we're stubbing here, just to get the whole infra to work again, fixme.
+	for _, v := range cleanImageKeys {
+		albumOrdering.Ordering = append(albumOrdering.Ordering, a.site.GetPhotoForKey(v))
+	}
+
+	return albumOrdering, nil
 }
 
 //wrapper around GetAllObjectKeysFromBucket to add in a caching layer, nothing below
@@ -300,8 +336,13 @@ func (a *Album) GetAllObjectKeys() ([]string, error) {
 
 //retrieves the actual album ordering from s3, it expects a file as hard-coded in
 // the constant ORDERING_YAML_NAME
-func (a *Album) GetAlbumOrderingFromS3() (AlbumOrdering, error) {
-	var albumOrdering AlbumOrdering
+// we do a bit of preprocessing in order to take images from relative to a bucket in
+// to being absolute in the bucket (in that, in order to compare keys, we have bucket-name/image.jpg
+// instead of just image.jpg in the orderings/definitions. Since the config is per-bucket, we'll do that at
+// the lowest level in order to avoid confusion/difficulty later. (i.e: consistent from inception at the
+// cost of hiding a bit of reality)
+func (a *Album) GetAlbumOrderingConfigurationFromS3AndPreprocess() (AlbumOrderingConfiguration, error) {
+	var albumOrdering AlbumOrderingConfiguration
 	svc, err := a.site.GetS3Service()
 	if err != nil {
 		return albumOrdering, err
@@ -337,21 +378,39 @@ func (a *Album) GetAlbumOrderingFromS3() (AlbumOrdering, error) {
 		return albumOrdering, err
 	}
 
+	//we want to prepend the album path to every supported key, this is simply for later consistency.
+	if albumOrdering.Cover != "" {
+		parsedAlbumPrefix, _ := url.Parse(a.Path)
+		parsedCoverKey, _ := url.Parse(albumOrdering.Cover)
+
+		fullPath := parsedAlbumPrefix.ResolveReference(parsedCoverKey)
+		albumOrdering.Cover = fullPath.String()
+	}
+
+	//cool, now let's do the same for thumbnails
+	if len(albumOrdering.Thumbnails) > 0 {
+		parsedAlbumPrefix, _ := url.Parse(a.Path)
+		parsedCoverKey, _ := url.Parse(albumOrdering.Cover)
+
+		fullPath := parsedAlbumPrefix.ResolveReference(parsedCoverKey)
+		albumOrdering.Cover = fullPath.String()
+	}
+
 	return albumOrdering, nil
 }
 
 //note that this also caches negative values, i.e: adding a ordering file may take an hour
 //to be rechecked.
-func (a *Album) GetAlbumOrdering() (AlbumOrdering, error) {
+func (a *Album) GetAlbumOrderingConfiguration() (AlbumOrderingConfiguration, error) {
 	c := make(chan *GetFromOrderingCacheResult)
 	go func() {
 		if a.OrderingCache.Load() != nil {
-			c <- &GetFromOrderingCacheResult{a.OrderingCache.Load().(AlbumOrdering), nil}
+			c <- &GetFromOrderingCacheResult{a.OrderingCache.Load().(AlbumOrderingConfiguration), nil}
 
 			a.AlbumOrderingUpdateMutex.Lock()
 			if a.NeedsOrderingCacheUpdate() {
 
-				albumOrdering, err := a.GetAlbumOrderingFromS3()
+				albumOrdering, err := a.GetAlbumOrderingConfigurationFromS3AndPreprocess()
 				if err == nil || albumOrdering.negativeCacheThis {
 					// whether the item is valid or we should be negatively
 					// caching this result (probs err!=nil, but the value
@@ -364,7 +423,7 @@ func (a *Album) GetAlbumOrdering() (AlbumOrdering, error) {
 			a.AlbumOrderingUpdateMutex.Unlock()
 		} else {
 			a.AlbumOrderingUpdateMutex.Lock()
-			albumOrdering, err := a.GetAlbumOrderingFromS3()
+			albumOrdering, err := a.GetAlbumOrderingConfigurationFromS3AndPreprocess()
 			if err == nil || albumOrdering.negativeCacheThis {
 				// whether the item is valid or we should be negatively
 				// caching this result (probs err!=nil, but the value
@@ -379,7 +438,7 @@ func (a *Album) GetAlbumOrdering() (AlbumOrdering, error) {
 		}
 	}()
 
-	var albumOrdering AlbumOrdering
+	var albumOrdering AlbumOrderingConfiguration
 	result := <-c
 	if result.err != nil {
 		//consumer should be checking err
