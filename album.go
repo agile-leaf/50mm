@@ -152,7 +152,7 @@ func (a *Album) GetCanonicalUrl() *url.URL {
 	return u
 }
 
-func mergeList(bucketKeys []string, configKeys []string) []string {
+func mergeList(bucketKeys []string, configKeys []string, album_name string) []string {
 	var mergedKeys []string
 
 	//set up map for faster searching of set existence in the config keys
@@ -165,6 +165,8 @@ func mergeList(bucketKeys []string, configKeys []string) []string {
 		// keys in the config come first, silently drop non-existents
 		if bucketMembership[strings.TrimLeft(configKey, "/")] {
 			mergedKeys = append(mergedKeys, configKey)
+		} else {
+			fmt.Printf("\nCould not find ordering-specified image %s in album %s", configKey, album_name)
 		}
 	}
 
@@ -316,7 +318,7 @@ func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 	//this way rather than to reduce code and be opaque
 	var thumbKeys []string
 	if len(albumOrderingConfiguration.Thumbnails) > 0 {
-		thumbKeys = mergeList(cleanImageKeys, albumOrderingConfiguration.Thumbnails)
+		thumbKeys = mergeList(cleanImageKeys, albumOrderingConfiguration.Thumbnails, a.Path)
 		if len(thumbKeys) > 5 {
 			thumbKeys = thumbKeys[0:5]
 		} else if len(thumbKeys) > 0 {
@@ -338,7 +340,7 @@ func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 	}
 
 	//the actual album ordering
-	mergedOrdering := mergeList(cleanImageKeys, albumOrderingConfiguration.Ordering)
+	mergedOrdering := mergeList(cleanImageKeys, albumOrderingConfiguration.Ordering, a.Path)
 	for _, v := range mergedOrdering {
 		albumOrdering.Ordering = append(albumOrdering.Ordering, a.site.GetPhotoForKey(v))
 	}
