@@ -301,21 +301,25 @@ func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 		albumOrdering.Cover = a.site.GetPhotoForKey(cleanImageKeys[0])
 	}
 
-	//TODO we're stubbing here, just to get the whole infra to work again, fixme.
-	//thumbnails
+	//thumbnails - there is a bit of duplicate code here, but it was clearer to do it
+	//this way rather than to reduce code and be opaque
 	var thumbKeys []string
 	if len(albumOrderingConfiguration.Thumbnails) > 0 {
 		thumbKeys = mergeList(cleanImageKeys, albumOrderingConfiguration.Thumbnails)
+		if len(thumbKeys) > 5 {
+			thumbKeys = thumbKeys[0:5]
+		} else if len(thumbKeys) > 0 {
+			thumbKeys = thumbKeys[0:]
+		}
 	} else {
 		//take care of the offset here (i.e: cover is index 0 if we're not using the config)
-		thumbKeys = make([]string, len(cleanImageKeys)-1)
-		copy(thumbKeys, cleanImageKeys[1:])
-	}
-
-	if len(thumbKeys) > 5 {
-		thumbKeys = thumbKeys[0:5]
-	} else if len(thumbKeys) > 0 {
-		thumbKeys = thumbKeys[0:]
+		thumbKeys = make([]string, len(cleanImageKeys))
+		copy(thumbKeys, cleanImageKeys)
+		if len(thumbKeys) > 6 {
+			thumbKeys = thumbKeys[1:6]
+		} else if len(thumbKeys) > 1 {
+			thumbKeys = thumbKeys[1:]
+		}
 	}
 
 	for _, v := range thumbKeys {
