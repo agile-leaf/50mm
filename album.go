@@ -152,32 +152,33 @@ func (a *Album) GetCanonicalUrl() *url.URL {
 	return u
 }
 
-//check if a path exists, takes in to account some minor things
-//like preceding slashes, etc.
-func containsPath(corpus []string, findme string) bool {
-	//TODO this can be moved to set operations for a great speed increase.
-	findmeStripped := strings.TrimLeft(findme, "/")
-	for _, current := range corpus {
-		currentStripped := strings.TrimLeft(current, "/")
-		if currentStripped == findmeStripped {
-			return true
-		}
-	}
-	return false
-}
-
 func mergeList(bucketKeys []string, configKeys []string) []string {
 	var mergedKeys []string
+
+	//set up map for faster searching of set existence in the config keys
+	configMembership := make(map[string]bool)
+	for _, v := range configKeys {
+		configMembership[strings.TrimLeft(v, "/")] = true
+	}
+
 	for _, configKey := range configKeys {
 		// keys in the config come first, silently drop non-existents
-		if containsPath(bucketKeys, configKey) {
+		if configMembership[strings.TrimLeft(configKey, "/")] {
 			mergedKeys = append(mergedKeys, configKey)
 		}
 	}
+
+	//now set up the membership map for the just-made mergedKeys
+	//set up map for faster searching of set existence in the merged keys
+	mergedMembership := make(map[string]bool)
+	for _, v := range mergedKeys {
+		mergedMembership[strings.TrimLeft(v, "/")] = true
+	}
+
 	for _, bucketKey := range bucketKeys {
 		// all keys not yet processed previously (by config) are appended
 		// makes sure that keys seen before do not re-appear.
-		if !containsPath(mergedKeys, bucketKey) {
+		if !mergedMembership[strings.TrimLeft(bucketKey, "/")] {
 			mergedKeys = append(mergedKeys, bucketKey)
 		}
 	}
@@ -290,7 +291,17 @@ func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 	//let's start with the cover photo, there's only one, this should be easy.
 
 	if albumOrderingConfiguration.Cover != "" {
-		if containsPath(cleanImageKeys, albumOrderingConfiguration.Cover) {
+
+		// not the most efficient way of checking for existence, but it's one off.
+		var coverKeyInBucket = false
+		for _, bucketKey := range cleanImageKeys {
+			if strings.TrimLeft(bucketKey, "/") == strings.TrimLeft(albumOrderingConfiguration.Cover, "/") {
+				coverKeyInBucket = true
+				break
+			}
+		}
+
+		if coverKeyInBucket {
 			albumOrdering.Cover = a.site.GetPhotoForKey(albumOrderingConfiguration.Cover)
 		} else {
 			fmt.Printf("\ncover photo specified in ordering file not found in bucket, check %s exists. "+
@@ -429,29 +440,29 @@ func (a *Album) GetAlbumOrderingConfigurationFromS3AndPreprocess() (AlbumOrderin
 		parsedAlbumPrefix, _ := url.Parse(a.Path)
 		parsedCoverKey, _ := url.Parse(albumOrdering.Cover)
 
-		fullPath := parsedAlbumPrefix.ResolveReference(parsedCoverKey)
-		albumOrdering.Cover = fullPath.String()
+		fullPath := parsedAlbumPrefix.ResolveReference(parsedCoverKey).String()
+		albumOrdering.Cover = strings.TrimLeft(fullPath, "/")
 	}
 
 	//cool, now let's do the same for thumbnails
 	if len(albumOrdering.Thumbnails) > 0 {
-		for _, v := range albumOrdering.Thumbnails {
+		for index, v := range albumOrdering.Thumbnails {
 			parsedAlbumPrefix, _ := url.Parse(a.Path)
 			parsedCoverKey, _ := url.Parse(v)
 
 			fullPath := parsedAlbumPrefix.ResolveReference(parsedCoverKey).String()
-			albumOrdering.Thumbnails = append(albumOrdering.Thumbnails, fullPath)
+			albumOrdering.Thumbnails[index] = strings.TrimLeft(fullPath, "/")
 		}
 	}
 
 	//and finally, for the overall order.
 	if len(albumOrdering.Ordering) > 0 {
-		for _, v := range albumOrdering.Ordering {
+		for index, v := range albumOrdering.Ordering {
 			parsedAlbumPrefix, _ := url.Parse(a.Path)
 			parsedCoverKey, _ := url.Parse(v)
 
 			fullPath := parsedAlbumPrefix.ResolveReference(parsedCoverKey).String()
-			albumOrdering.Ordering = append(albumOrdering.Ordering, fullPath)
+			albumOrdering.Ordering[index] = strings.TrimLeft(fullPath, "/")
 		}
 	}
 
