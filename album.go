@@ -156,14 +156,14 @@ func mergeList(bucketKeys []string, configKeys []string) []string {
 	var mergedKeys []string
 
 	//set up map for faster searching of set existence in the config keys
-	configMembership := make(map[string]bool)
-	for _, v := range configKeys {
-		configMembership[strings.TrimLeft(v, "/")] = true
+	bucketMembership := make(map[string]bool)
+	for _, v := range bucketKeys {
+		bucketMembership[strings.TrimLeft(v, "/")] = true
 	}
 
 	for _, configKey := range configKeys {
 		// keys in the config come first, silently drop non-existents
-		if configMembership[strings.TrimLeft(configKey, "/")] {
+		if bucketMembership[strings.TrimLeft(configKey, "/")] {
 			mergedKeys = append(mergedKeys, configKey)
 		}
 	}
