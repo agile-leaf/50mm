@@ -64,7 +64,7 @@ type GetFromKeyCacheResult struct {
 	err  error
 }
 
-type GetFromOrderingCacheResult struct {
+type GetFromOrderingConfigCacheResult struct {
 	albumOrderingConfig AlbumOrderingConfig
 	err                 error
 }
@@ -474,10 +474,10 @@ func (a *Album) GetAlbumOrderingConfigFromS3AndPreprocess() (AlbumOrderingConfig
 //note that this also caches negative values, i.e: adding a ordering file may take an hour
 //to be rechecked.
 func (a *Album) GetAlbumOrderingConfig() (AlbumOrderingConfig, error) {
-	c := make(chan *GetFromOrderingCacheResult)
+	c := make(chan *GetFromOrderingConfigCacheResult)
 	go func() {
 		if a.OrderingCache.Load() != nil {
-			c <- &GetFromOrderingCacheResult{a.OrderingCache.Load().(AlbumOrderingConfig), nil}
+			c <- &GetFromOrderingConfigCacheResult{a.OrderingCache.Load().(AlbumOrderingConfig), nil}
 
 			a.AlbumAlbumOrderingConfigUpdateMutex.Lock()
 			if a.NeedsOrderingCacheUpdate() {
@@ -504,7 +504,7 @@ func (a *Album) GetAlbumOrderingConfig() (AlbumOrderingConfig, error) {
 				a.LastAlbumOrderingConfigCacheUpdate = time.Now()
 			}
 
-			c <- &GetFromOrderingCacheResult{albumOrdering, err}
+			c <- &GetFromOrderingConfigCacheResult{albumOrdering, err}
 
 			a.AlbumAlbumOrderingConfigUpdateMutex.Unlock()
 		}
