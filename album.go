@@ -540,7 +540,6 @@ func (a *Album) ImageExists(slug string) bool {
 		Bucket: aws.String(a.site.BucketName),
 		Key:    aws.String(key),
 	})
-
 	if err != nil {
 		return false
 	}
