@@ -34,17 +34,17 @@ type Album struct {
 
 	InIndex bool
 
-	KeyCache        atomic.Value
-	OrderingCache        atomic.Value
-	LastKeyCacheUpdate time.Time
-	LastOrderingCacheUpdate time.Time
+	KeyCache                           atomic.Value
+	OrderingCache                      atomic.Value
+	LastKeyCacheUpdate                 time.Time
+	LastAlbumOrderingConfigCacheUpdate time.Time
 
-	KeyCacheUpdateMutex      sync.Mutex
-	AlbumOrderingUpdateMutex sync.Mutex
+	KeyCacheUpdateMutex                 sync.Mutex
+	AlbumAlbumOrderingConfigUpdateMutex sync.Mutex
 }
 
 //this struct will store the _configuration_ as read from a yaml file
-type AlbumOrderingConfiguration struct {
+type AlbumOrderingConfig struct {
 	Cover             string
 	Thumbnails        []string
 	Ordering          []string
@@ -65,8 +65,8 @@ type GetFromKeyCacheResult struct {
 }
 
 type GetFromOrderingCacheResult struct {
-	ordering AlbumOrderingConfiguration
-	err      error
+	albumOrderingConfig AlbumOrderingConfig
+	err                 error
 }
 
 func NewAlbumFromConfig(section *ini.Section, s *Site) (*Album, error) {
@@ -250,7 +250,7 @@ func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 	var albumOrdering AlbumOrdering
 
 	//pick up our configuration, note that this may be all empties if there's an err in retrieval/parsing.
-	albumOrderingConfiguration, err := a.GetAlbumOrderingConfiguration()
+	albumOrderingConfig, err := a.GetAlbumOrderingConfig()
 
 	if err != nil {
 		if aerr, ok := err.(awserr.RequestFailure); ok {
@@ -292,22 +292,22 @@ func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 
 	//let's start with the cover photo, there's only one, this should be easy.
 
-	if albumOrderingConfiguration.Cover != "" {
+	if albumOrderingConfig.Cover != "" {
 
 		// not the most efficient way of checking for existence, but it's one off.
 		var coverKeyInBucket = false
 		for _, bucketKey := range cleanImageKeys {
-			if strings.TrimLeft(bucketKey, "/") == strings.TrimLeft(albumOrderingConfiguration.Cover, "/") {
+			if strings.TrimLeft(bucketKey, "/") == strings.TrimLeft(albumOrderingConfig.Cover, "/") {
 				coverKeyInBucket = true
 				break
 			}
 		}
 
 		if coverKeyInBucket {
-			albumOrdering.Cover = a.site.GetPhotoForKey(albumOrderingConfiguration.Cover)
+			albumOrdering.Cover = a.site.GetPhotoForKey(albumOrderingConfig.Cover)
 		} else {
 			fmt.Printf("\ncover photo specified in ordering file not found in bucket, check %s exists. "+
-				"Falling back to first photo", albumOrderingConfiguration.Cover)
+				"Falling back to first photo", albumOrderingConfig.Cover)
 			albumOrdering.Cover = a.site.GetPhotoForKey(cleanImageKeys[0])
 		}
 	} else {
@@ -317,8 +317,8 @@ func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 	//thumbnails - there is a bit of duplicate code here, but it was clearer to do it
 	//this way rather than to reduce code and be opaque
 	var thumbKeys []string
-	if len(albumOrderingConfiguration.Thumbnails) > 0 {
-		thumbKeys = mergeList(cleanImageKeys, albumOrderingConfiguration.Thumbnails, a.Path)
+	if len(albumOrderingConfig.Thumbnails) > 0 {
+		thumbKeys = mergeList(cleanImageKeys, albumOrderingConfig.Thumbnails, a.Path)
 		if len(thumbKeys) > 5 {
 			thumbKeys = thumbKeys[0:5]
 		} else if len(thumbKeys) > 0 {
@@ -340,7 +340,7 @@ func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 	}
 
 	//the actual album ordering
-	mergedOrdering := mergeList(cleanImageKeys, albumOrderingConfiguration.Ordering, a.Path)
+	mergedOrdering := mergeList(cleanImageKeys, albumOrderingConfig.Ordering, a.Path)
 	for _, v := range mergedOrdering {
 		albumOrdering.Ordering = append(albumOrdering.Ordering, a.site.GetPhotoForKey(v))
 	}
@@ -399,8 +399,8 @@ func (a *Album) GetAllObjectKeys() ([]string, error) {
 // instead of just image.jpg in the orderings/definitions. Since the config is per-bucket, we'll do that at
 // the lowest level in order to avoid confusion/difficulty later. (i.e: consistent from inception at the
 // cost of hiding a bit of reality)
-func (a *Album) GetAlbumOrderingConfigurationFromS3AndPreprocess() (AlbumOrderingConfiguration, error) {
-	var albumOrdering AlbumOrderingConfiguration
+func (a *Album) GetAlbumOrderingConfigFromS3AndPreprocess() (AlbumOrderingConfig, error) {
+	var albumOrdering AlbumOrderingConfig
 	svc, err := a.site.GetS3Service()
 	if err != nil {
 		return albumOrdering, err
@@ -473,50 +473,50 @@ func (a *Album) GetAlbumOrderingConfigurationFromS3AndPreprocess() (AlbumOrderin
 
 //note that this also caches negative values, i.e: adding a ordering file may take an hour
 //to be rechecked.
-func (a *Album) GetAlbumOrderingConfiguration() (AlbumOrderingConfiguration, error) {
+func (a *Album) GetAlbumOrderingConfig() (AlbumOrderingConfig, error) {
 	c := make(chan *GetFromOrderingCacheResult)
 	go func() {
 		if a.OrderingCache.Load() != nil {
-			c <- &GetFromOrderingCacheResult{a.OrderingCache.Load().(AlbumOrderingConfiguration), nil}
+			c <- &GetFromOrderingCacheResult{a.OrderingCache.Load().(AlbumOrderingConfig), nil}
 
-			a.AlbumOrderingUpdateMutex.Lock()
+			a.AlbumAlbumOrderingConfigUpdateMutex.Lock()
 			if a.NeedsOrderingCacheUpdate() {
 
-				albumOrdering, err := a.GetAlbumOrderingConfigurationFromS3AndPreprocess()
+				albumOrdering, err := a.GetAlbumOrderingConfigFromS3AndPreprocess()
 				if err == nil || albumOrdering.negativeCacheThis {
 					// whether the item is valid or we should be negatively
 					// caching this result (probs err!=nil, but the value
 					// should be there and a valid boolean.
 					a.OrderingCache.Store(albumOrdering)
-					a.LastOrderingCacheUpdate = time.Now()
+					a.LastAlbumOrderingConfigCacheUpdate = time.Now()
 				}
 
 			}
-			a.AlbumOrderingUpdateMutex.Unlock()
+			a.AlbumAlbumOrderingConfigUpdateMutex.Unlock()
 		} else {
-			a.AlbumOrderingUpdateMutex.Lock()
-			albumOrdering, err := a.GetAlbumOrderingConfigurationFromS3AndPreprocess()
+			a.AlbumAlbumOrderingConfigUpdateMutex.Lock()
+			albumOrdering, err := a.GetAlbumOrderingConfigFromS3AndPreprocess()
 			if err == nil || albumOrdering.negativeCacheThis {
 				// whether the item is valid or we should be negatively
 				// caching this result (probs err!=nil, but the value
 				// should be there and a valid boolean.
 				a.OrderingCache.Store(albumOrdering)
-				a.LastOrderingCacheUpdate = time.Now()
+				a.LastAlbumOrderingConfigCacheUpdate = time.Now()
 			}
 
 			c <- &GetFromOrderingCacheResult{albumOrdering, err}
 
-			a.AlbumOrderingUpdateMutex.Unlock()
+			a.AlbumAlbumOrderingConfigUpdateMutex.Unlock()
 		}
 	}()
 
-	var albumOrdering AlbumOrderingConfiguration
+	var albumOrdering AlbumOrderingConfig
 	result := <-c
 	if result.err != nil {
 		//consumer should be checking err
 		return albumOrdering, result.err
 	} else {
-		return result.ordering, result.err
+		return result.albumOrderingConfig, result.err
 	}
 }
 
@@ -544,5 +544,5 @@ func (a *Album) NeedsKeyCacheUpdate() bool {
 }
 
 func (a *Album) NeedsOrderingCacheUpdate() bool {
-	return time.Now().Sub(a.LastOrderingCacheUpdate) > CACHE_INTERVAL
+	return time.Now().Sub(a.LastAlbumOrderingConfigCacheUpdate) > CACHE_INTERVAL
 }
