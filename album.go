@@ -255,7 +255,7 @@ func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 	if err != nil {
 		if aerr, ok := err.(awserr.RequestFailure); ok {
 			if aerr.StatusCode() != 404 {
-				//regular 404's add too much noise, we couldn't find the file we shouldn't say anything.
+				//regular 404's add too much noise, we shouldn't say anything. Other errors should be displayed.
 				fmt.Printf("\nUnable to pick up album ordering for album %s from S3, Error: %s", a.Path, err.Error())
 			}
 		}
