@@ -294,7 +294,8 @@ func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 
 	if albumOrderingConfig.Cover != "" {
 
-		// not the most efficient way of checking for existence, but it's one off.
+		// not the most efficient way of checking for existence, but it's one-off so not worth
+		// building a map/set.
 		var coverKeyInBucket = false
 		for _, bucketKey := range cleanImageKeys {
 			if strings.TrimLeft(bucketKey, "/") == strings.TrimLeft(albumOrderingConfig.Cover, "/") {
@@ -308,10 +309,18 @@ func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 		} else {
 			fmt.Printf("\ncover photo specified in ordering file not found in bucket, check %s exists. "+
 				"Falling back to first photo", albumOrderingConfig.Cover)
-			albumOrdering.Cover = a.site.GetPhotoForKey(cleanImageKeys[0])
+			if len(cleanImageKeys) > 0 {
+				albumOrdering.Cover = a.site.GetPhotoForKey(cleanImageKeys[0])
+			} else {
+				albumOrdering.Cover = a.site.GetPhotoForKey("")
+			}
 		}
 	} else {
-		albumOrdering.Cover = a.site.GetPhotoForKey(cleanImageKeys[0])
+		if len(cleanImageKeys) > 0 {
+			albumOrdering.Cover = a.site.GetPhotoForKey(cleanImageKeys[0])
+		} else {
+			albumOrdering.Cover = a.site.GetPhotoForKey("")
+		}
 	}
 
 	//thumbnails - there is a bit of duplicate code here, but it was clearer to do it
