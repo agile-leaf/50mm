@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"math"
 )
 
 const CACHE_INTERVAL = 1 * time.Hour
@@ -328,20 +329,13 @@ func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 	var thumbKeys []string
 	if len(albumOrderingConfig.Thumbnails) > 0 {
 		thumbKeys = mergeList(cleanImageKeys, albumOrderingConfig.Thumbnails, a.Path)
-		if len(thumbKeys) > 5 {
-			thumbKeys = thumbKeys[0:5]
-		} else if len(thumbKeys) > 0 {
-			thumbKeys = thumbKeys[0:]
-		}
+		numUsableThumbKeys := int(math.Min(5, float64(len(thumbKeys))))
+		thumbKeys = thumbKeys[0:numUsableThumbKeys]
 	} else {
 		//take care of the offset here (i.e: cover is index 0 if we're not using the config)
-		thumbKeys = make([]string, len(cleanImageKeys))
-		copy(thumbKeys, cleanImageKeys)
-		if len(thumbKeys) > 6 {
-			thumbKeys = thumbKeys[1:6]
-		} else if len(thumbKeys) > 1 {
-			thumbKeys = thumbKeys[1:]
-		}
+		numUsableThumbKeys := int(math.Min(5, float64(len(cleanImageKeys))))
+		thumbKeys = make([]string, numUsableThumbKeys)
+		copy(thumbKeys, cleanImageKeys[1:numUsableThumbKeys+1])
 	}
 
 	for _, v := range thumbKeys {
