@@ -86,11 +86,12 @@ func handleAlbumPage(album *Album, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if imageUrls, err := album.GetAllPhotos(); err != nil {
+	if albumOrdering, err := album.GetOrderedPhotos(); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
 		return
 	} else {
+		imageUrls := albumOrdering.Ordering
 		ctx := &AlbumPageContext{
 			&BasePageContext{
 				album.site.GetCanonicalUrl().String(),

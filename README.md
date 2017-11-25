@@ -167,6 +167,57 @@ The app caches image keys for 1 hour in memory. If you want to clear that cache,
 
 The frontend uses [echo](https://github.com/toddmotto/echo) to lazy load images that are not in view. It also unloads images that scroll out of the view. This was done because we usually have albums with tons of images, and having them all loaded at once would hog memory.
 
+## Customize album ordering
+
+Sometimes the ordering of your photos matters - you want to images in a certain order and you  don't want to rename all your photos to get that ordering.
+
+In order to customize your album ordering in 50mm you'll have to build and upload a yaml file in to the corresponding bucket with the name `ordering.yaml`. The file has three main sections (each of which is optional), some basic examples:
+
+```yaml
+cover: PA036337.jpg
+thumbnails:
+  - PA036278.jpg
+  - PA036279.jpg
+  - PA036280.jpg
+  - PA036281.jpg
+  - PA036282.jpg
+ordering:
+  - PA036278.jpg
+  - PA036282.jpg
+  - PA015843.jpg
+  - PA015848.jpg
+  - PA015852.jpg
+  - PA015853.jpg
+  - PA015854.jpg
+  - PA015856.jpg
+```
+```yaml
+ordering:
+  - PA036278.jpg
+  - PA036282.jpg
+  - PA015843.jpg
+  - PA015848.jpg
+  - PA015852.jpg
+  - PA015853.jpg
+  - PA015854.jpg
+  - PA015856.jpg
+```
+```yaml
+thumbnails:
+  - PA036278.jpg
+  - PA036279.jpg
+ordering:
+  - PA036278.jpg
+  - PA036282.jpg
+  - PA015843.jpg
+  - PA015848.jpg
+```
+The section names are pretty self-explanatory, each element in the list should correspond to an image key in the corresponding bucket. A few important behaviours:
+
+1. 50mm processes the filenames **in order**. Filenames that exist in the actual bucket but not in the `thumbnails` or `ordering` sections causes the omitted filenames to appear later in the album (i.e: the ordering is a sort of "put these images first"). As an example, if your album has 50 images and your `ordering` section has specified two filenames, those files are plucked out of their spots in the bucket ordering and placed at the start of the album.
+1. If a filename is specified in the yaml file but does not exist in the bucket, we ignore that entry.
+1. Malformed `yaml` files are warned about but ultimately ignored.
+
 ## Final thoughts
 50mm was created because of a frustration we felt. As amateur photographers, we take lots of photographs, and didn't find an easy solution to share those photos with our friends and family. 50mm is our answer to that frustration.
 
