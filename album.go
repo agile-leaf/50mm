@@ -524,21 +524,16 @@ func (a *Album) GetAlbumOrderingConfig() (AlbumOrderingConfig, error) {
 }
 
 func (a *Album) ImageExists(slug string) bool {
-	svc, err := a.site.GetS3Service()
-	if err != nil {
-		return false
+	albumOrdering, err := a.GetOrderedPhotos()
+	if err == nil {
+		// we don't really care if there was an error, we'll return false below.
+		for _, v := range albumOrdering.Ordering {
+			if strings.TrimLeft(v.Slug(), "/") == strings.TrimLeft(slug, "/") {
+				return true
+			}
+		}
 	}
-
-	key := strings.Join([]string{a.BucketPrefix, slug}, "/")
-	_, err = svc.HeadObject(&s3.HeadObjectInput{
-		Bucket: aws.String(a.site.BucketName),
-		Key:    aws.String(key),
-	})
-	if err != nil {
-		return false
-	}
-
-	return true
+	return false
 }
 
 func (a *Album) NeedsKeyCacheUpdate() bool {
