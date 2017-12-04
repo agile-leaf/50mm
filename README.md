@@ -218,6 +218,10 @@ The section names are pretty self-explanatory, each element in the list should c
 1. If a filename is specified in the yaml file but does not exist in the bucket, we ignore that entry.
 1. Malformed `yaml` files are warned about but ultimately ignored.
 
+## Migrating from flickr
+
+[flickr_to_50mm](https://github.com/arahayrabedian/flickr_to_50mm) is a sister project that can generate the `ordering.yaml` files by reading the flickr API. There is also [flickrtouchr](https://github.com/dan/hivelogic-flickrtouchr) to download your photos from flickr if you no longer have the originals.
+
 ## Final thoughts
 50mm was created because of a frustration we felt. As amateur photographers, we take lots of photographs, and didn't find an easy solution to share those photos with our friends and family. 50mm is our answer to that frustration.
 
