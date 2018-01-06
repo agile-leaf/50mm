@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"bitbucket.org/zombiezen/cardcpx/natsort"
 	"math"
 )
 
@@ -234,12 +235,13 @@ func (a *Album) GetAllObjectKeysFromBucket() ([]string, error) {
 	var imageKeys []string
 	for _, obj := range objects {
 		key := *obj.Key
-		if key[len(*obj.Key)-1] != '/' {
+		if key[len(key)-1] != '/' {
 			//check for 'folder' name vs actual object - objects end without trailing /
 			imageKeys = append(imageKeys, key)
 		}
 	}
 
+	natsort.Strings(imageKeys)
 	return imageKeys, nil
 }
 
