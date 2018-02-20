@@ -187,7 +187,7 @@ func (s *Site) IsValid() error {
 	switch s.ResizingService {
 	case "imgix", "":
 		break // All valid configs
-	case "tumbor":
+	case "thumbor":
 		if s.ResizingServiceSecret == "" {
 			return errors.New("Thumbor resizing service requires use of a shared secret for URL signing")
 		}
