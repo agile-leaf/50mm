@@ -9,14 +9,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"io/ioutil"
+	"math"
+
+	"bitbucket.org/zombiezen/cardcpx/natsort"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-ini/ini"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"bitbucket.org/zombiezen/cardcpx/natsort"
-	"math"
 )
 
 const CACHE_INTERVAL = 1 * time.Hour
@@ -56,9 +57,9 @@ type AlbumOrderingConfig struct {
 //this struct will store our actual renderable orderings, as processed
 //by reading the config, the actual file index, and doing some merging
 type AlbumOrdering struct {
-	Cover             Renderable
-	Thumbnails        []Renderable
-	Ordering          []Renderable
+	Cover      Renderable
+	Thumbnails []Renderable
+	Ordering   []Renderable
 }
 
 type GetFromKeyCacheResult struct {
