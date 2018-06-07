@@ -9,14 +9,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"io/ioutil"
+	"math"
+
+	"bitbucket.org/zombiezen/cardcpx/natsort"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-ini/ini"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"bitbucket.org/zombiezen/cardcpx/natsort"
-	"math"
 )
 
 const CACHE_INTERVAL = 1 * time.Hour
@@ -56,9 +57,9 @@ type AlbumOrderingConfig struct {
 //this struct will store our actual renderable orderings, as processed
 //by reading the config, the actual file index, and doing some merging
 type AlbumOrdering struct {
-	Cover             Renderable
-	Thumbnails        []Renderable
-	Ordering          []Renderable
+	Cover      Renderable
+	Thumbnails []Renderable
+	Ordering   []Renderable
 }
 
 type GetFromKeyCacheResult struct {
@@ -444,7 +445,7 @@ func (a *Album) GetAlbumOrderingConfigFromS3AndPreprocess() (AlbumOrderingConfig
 
 	//we want to prepend the album path to every supported key, this is simply for later consistency.
 	if albumOrdering.Cover != "" {
-		parsedAlbumPrefix, _ := url.Parse(a.Path)
+		parsedAlbumPrefix, _ := url.Parse(a.BucketPrefix)
 		parsedCoverKey, _ := url.Parse(albumOrdering.Cover)
 
 		fullPath := parsedAlbumPrefix.ResolveReference(parsedCoverKey).String()
@@ -454,7 +455,7 @@ func (a *Album) GetAlbumOrderingConfigFromS3AndPreprocess() (AlbumOrderingConfig
 	//cool, now let's do the same for thumbnails
 	if len(albumOrdering.Thumbnails) > 0 {
 		for index, v := range albumOrdering.Thumbnails {
-			parsedAlbumPrefix, _ := url.Parse(a.Path)
+			parsedAlbumPrefix, _ := url.Parse(a.BucketPrefix)
 			parsedCoverKey, _ := url.Parse(v)
 
 			fullPath := parsedAlbumPrefix.ResolveReference(parsedCoverKey).String()
@@ -465,7 +466,7 @@ func (a *Album) GetAlbumOrderingConfigFromS3AndPreprocess() (AlbumOrderingConfig
 	//and finally, for the overall order.
 	if len(albumOrdering.Ordering) > 0 {
 		for index, v := range albumOrdering.Ordering {
-			parsedAlbumPrefix, _ := url.Parse(a.Path)
+			parsedAlbumPrefix, _ := url.Parse(a.BucketPrefix)
 			parsedCoverKey, _ := url.Parse(v)
 
 			fullPath := parsedAlbumPrefix.ResolveReference(parsedCoverKey).String()
