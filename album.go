@@ -445,7 +445,7 @@ func (a *Album) GetAlbumOrderingConfigFromS3AndPreprocess() (AlbumOrderingConfig
 
 	//we want to prepend the album path to every supported key, this is simply for later consistency.
 	if albumOrdering.Cover != "" {
-		parsedAlbumPrefix, _ := url.Parse(a.Path)
+		parsedAlbumPrefix, _ := url.Parse(a.BucketPrefix)
 		parsedCoverKey, _ := url.Parse(albumOrdering.Cover)
 
 		fullPath := parsedAlbumPrefix.ResolveReference(parsedCoverKey).String()
@@ -455,7 +455,7 @@ func (a *Album) GetAlbumOrderingConfigFromS3AndPreprocess() (AlbumOrderingConfig
 	//cool, now let's do the same for thumbnails
 	if len(albumOrdering.Thumbnails) > 0 {
 		for index, v := range albumOrdering.Thumbnails {
-			parsedAlbumPrefix, _ := url.Parse(a.Path)
+			parsedAlbumPrefix, _ := url.Parse(a.BucketPrefix)
 			parsedCoverKey, _ := url.Parse(v)
 
 			fullPath := parsedAlbumPrefix.ResolveReference(parsedCoverKey).String()
@@ -466,7 +466,7 @@ func (a *Album) GetAlbumOrderingConfigFromS3AndPreprocess() (AlbumOrderingConfig
 	//and finally, for the overall order.
 	if len(albumOrdering.Ordering) > 0 {
 		for index, v := range albumOrdering.Ordering {
-			parsedAlbumPrefix, _ := url.Parse(a.Path)
+			parsedAlbumPrefix, _ := url.Parse(a.BucketPrefix)
 			parsedCoverKey, _ := url.Parse(v)
 
 			fullPath := parsedAlbumPrefix.ResolveReference(parsedCoverKey).String()
