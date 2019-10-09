@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -53,11 +54,15 @@ type AlbumPageContext struct {
 }
 
 func executeTemplateHelper(w io.Writer, templateName string, ctx interface{}) {
+	var err error
 	if DEBUG {
 		tmpl := template.Must(template.ParseFiles(fmt.Sprintf("templates/%s", templateName)))
-		tmpl.Execute(w, ctx)
+		err = tmpl.Execute(w, ctx)
 	} else {
-		templates.ExecuteTemplate(w, templateName, ctx)
+		err = templates.ExecuteTemplate(w, templateName, ctx)
+	}
+	if err != nil {
+		log.Println(err)
 	}
 }
 

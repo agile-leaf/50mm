@@ -47,6 +47,11 @@ type S3Photo struct {
 	awsSession *session.Session
 }
 
+type ImageProxy struct {
+	*S3Photo
+	ImageProxy string
+}
+
 type Renderable interface {
 	Slug() string
 	GetPhotoForWidth(int) string
@@ -183,6 +188,36 @@ func (p *S3Photo) GetPhotoForWidth(w int) string {
 }
 
 func (p *S3Photo) GetThumbnailForWidthAndHeight(w, h int) string {
+	return p.GetPhotoForWidth(w)
+}
+
+func (p *ImageProxy) Slug() string {
+	parts := strings.Split(p.Key, "/")
+	return parts[len(parts)-1]
+}
+
+func (p *ImageProxy) GetPhotoForWidth(w int) string {
+	req, _ := s3.New(p.awsSession).GetObjectRequest(&s3.GetObjectInput{
+		Bucket: aws.String(p.BucketName),
+		Key:    aws.String(p.Key),
+	})
+
+	signedUrl, err := req.Presign(24 * time.Hour)
+	if err != nil {
+		log.Printf("Unable to sign URL for S3Photo. Error: %s\n", err.Error())
+		return ""
+	}
+	queryUrl, err := url.Parse(signedUrl)
+	if err != nil {
+		log.Printf("Unable to sign URL for S3Photo. Error: %s\n", err.Error())
+		return ""
+	}
+	queryUrl.RawQuery = ""
+
+	return fmt.Sprintf("%s/%dx/%s", strings.TrimRight(p.ImageProxy, "/"), w, queryUrl.String())
+}
+
+func (p *ImageProxy) GetThumbnailForWidthAndHeight(w, h int) string {
 	return p.GetPhotoForWidth(w)
 }
 

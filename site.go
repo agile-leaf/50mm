@@ -8,12 +8,13 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"io/ioutil"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-ini/ini"
-	"io/ioutil"
 )
 
 type Site struct {
@@ -30,6 +31,7 @@ type Site struct {
 	UseImgix              bool //deprecated
 	ResizingService       string
 	ResizingServiceSecret string
+	ImageProxy            string
 	BaseUrl               string
 
 	AWS_SECRET_KEY_ID                  string          `ini:"AWSKeyId"`
@@ -206,6 +208,10 @@ func (s *Site) IsValid() error {
 				return err
 			}
 		}
+	case "imageproxy":
+		if s.ImageProxy == "" {
+			return errors.New("ImageProxy requires proxy's URL")
+		}
 	default:
 		return fmt.Errorf("Unrecognized/Unimplemented resizing service '%s',"+
 			" valid options are imgix, thumbor, thumbor+cloudfront", s.ResizingService)
@@ -298,6 +304,11 @@ func (s *Site) GetScaledPhoto(key string) Renderable {
 				},
 				AWSCloudfrontKeyPairId:  s.AWS_CLOUDFRONT_PRIVATE_KEY_PAIR_ID,
 				AWSCloudfrontPrivateKey: s.CloudfrontPrivateKey,
+			}
+		} else if s.ResizingService == "imageproxy" {
+			return &ImageProxy{
+				S3Photo:    s.GetS3Photo(key),
+				ImageProxy: s.ImageProxy,
 			}
 		} else {
 			// it should never come to this due to configuration validation,

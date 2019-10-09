@@ -10,7 +10,7 @@
     <meta name="viewport" content="width=device-width">
     <meta property="og:url" content="{{.CanonicalUrl}}" />
     <meta property="og:title" content="{{.MetaTitle}}" />
-    {{if .Albums}}
+    {{if gt (len .Albums) 0}}
     {{with $firstAlbum := index .Albums 0}}
     <meta property="og:image" content="{{$firstAlbum.GetCoverPhotoForTemplate.GetPhotoForWidth 800}}" />
     {{end}}
