@@ -338,7 +338,7 @@ func (a *Album) GetOrderedPhotos() (AlbumOrdering, error) {
 		//take care of the offset here (i.e: cover is index 0 if we're not using the config)
 		numUsableThumbKeys := int(math.Min(5, float64(len(cleanImageKeys))))
 		thumbKeys = make([]string, numUsableThumbKeys)
-		copy(thumbKeys, cleanImageKeys[1:numUsableThumbKeys+1])
+		copy(thumbKeys, cleanImageKeys[1:numUsableThumbKeys])
 	}
 
 	for _, v := range thumbKeys {
