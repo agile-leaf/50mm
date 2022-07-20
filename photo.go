@@ -209,12 +209,11 @@ func (p *ImageProxy) GetPhotoForWidth(w int) string {
 	}
 	queryUrl, err := url.Parse(signedUrl)
 	if err != nil {
-		log.Printf("Unable to sign URL for S3Photo. Error: %s\n", err.Error())
+		log.Printf("Unable to sign URL %s for S3Photo. Error: %s\n", queryUrl.String(), err.Error())
 		return ""
 	}
-	queryUrl.RawQuery = ""
 
-	return fmt.Sprintf("%s/%dx/%s", strings.TrimRight(p.ImageProxy, "/"), w, queryUrl.String())
+	return fmt.Sprintf("%s/%dx/%s", strings.TrimRight(p.ImageProxy, "/"), w, signedUrl)
 }
 
 func (p *ImageProxy) GetThumbnailForWidthAndHeight(w, h int) string {
