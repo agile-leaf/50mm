@@ -25,6 +25,7 @@ type Site struct {
 	AuthPass string
 
 	S3Host       string
+	S3ForcePathStyle  bool
 	BucketRegion string
 	BucketName   string
 
@@ -131,6 +132,9 @@ func LoadSiteFromFile(path string) (*Site, error) {
 	}
 	if s.S3Host != "" {
 		sess_config.Endpoint = aws.String(s.S3Host)
+	}
+	if s.S3ForcePathStyle {
+		sess_config.S3ForcePathStyle = aws.Bool(true)
 	}
 
 	if sess, err := session.NewSession(sess_config); err != nil {
